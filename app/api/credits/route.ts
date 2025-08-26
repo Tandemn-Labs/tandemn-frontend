@@ -1,39 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { db } from '@/mock/db';
+import { auth } from '@clerk/nextjs/server';
+import { getUserCredits } from '@/lib/credits';
 import { sleep } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
     await sleep(100);
     
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
     
-    const userId = session.user.id === 'demo' ? 'demo-user' : session.user.id;
-    
-    // Get user's credit balance
-    const creditBalance = db.getCreditBalance(userId);
-    const user = db.getUser(userId);
-    
-    if (!creditBalance || !user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
+    // Get user's credit balance from Clerk metadata
+    const balance = await getUserCredits(userId);
     
     return NextResponse.json({
-      balance: creditBalance.balance,
-      totalEarned: creditBalance.totalEarned,
-      totalSpent: creditBalance.totalSpent,
-      lastUpdated: creditBalance.lastUpdated,
+      balance,
+      totalEarned: balance, // For now, assume all credits are earned
+      totalSpent: 0, // Calculate from transaction history if needed
+      lastUpdated: new Date().toISOString(),
     });
   } catch (error) {
     console.error('Error in /api/credits:', error);

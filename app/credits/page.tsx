@@ -1,199 +1,80 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  CreditCard, 
-  Plus, 
-  TrendingUp, 
-  TrendingDown, 
-  Clock, 
-  DollarSign,
-  Zap,
-  Activity,
-  BarChart3,
-  ChevronRight
-} from 'lucide-react';
-import { formatCurrency, CREDIT_PACKAGES } from '@/lib/stripe';
-
-type CreditBalance = {
-  balance: number;
-  totalEarned: number;
-  totalSpent: number;
-  lastUpdated: string;
-};
-
-type Transaction = {
-  id: string;
-  type: 'purchase' | 'usage' | 'refund' | 'bonus';
-  amount: number;
-  description: string;
-  modelId?: string;
-  modelName?: string;
-  modelVendor?: string;
-  tokens?: number;
-  createdAt: string;
-};
-
-type UsageStats = {
-  totalTokens: number;
-  totalCost: number;
-  period: string;
-};
-
-type ModelUsage = {
-  modelId: string;
-  modelName: string;
-  modelVendor: string;
-  tokens: number;
-  cost: number;
-  count: number;
-};
+import { CreditCard, Plus, Zap, DollarSign } from 'lucide-react';
+import { CREDIT_PACKAGES } from '@/lib/credits-client';
 
 export default function CreditsPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [creditBalance, setCreditBalance] = useState<CreditBalance | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
-  const [modelBreakdown, setModelBreakdown] = useState<ModelUsage[]>([]);
+  const { isSignedIn, isLoaded } = useUser();
+  const [credits, setCredits] = useState<number>(0);
   const [loading, setLoading] = useState(true);
-  const [purchaseLoading, setPurchaseLoading] = useState<string | null>(null);
+  const [purchasing, setPurchasing] = useState<string | null>(null);
 
-  // Redirect if not authenticated
   useEffect(() => {
-    if (status === 'loading') return;
-    if (!session) {
-      router.push('/signin');
-      return;
+    if (isLoaded && isSignedIn) {
+      fetchCredits();
     }
-  }, [session, status, router]);
+  }, [isLoaded, isSignedIn]);
 
-  // Fetch data
-  useEffect(() => {
-    if (!session) return;
-    
-    Promise.all([
-      fetchCreditBalance(),
-      fetchTransactions(),
-      fetchUsageData(),
-    ]).finally(() => setLoading(false));
-  }, [session]);
-
-  const fetchCreditBalance = async () => {
+  const fetchCredits = async () => {
     try {
       const response = await fetch('/api/credits');
       if (response.ok) {
         const data = await response.json();
-        setCreditBalance(data);
+        setCredits(data.balance || 0);
       }
     } catch (error) {
-      console.error('Failed to fetch credit balance:', error);
+      console.error('Error fetching credits:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchTransactions = async () => {
+  const purchaseCredits = async (packageId: string) => {
+    setPurchasing(packageId);
     try {
-      const response = await fetch('/api/credits/transactions?limit=10');
-      if (response.ok) {
-        const data = await response.json();
-        setTransactions(data.transactions);
-      }
-    } catch (error) {
-      console.error('Failed to fetch transactions:', error);
-    }
-  };
-
-  const fetchUsageData = async () => {
-    try {
-      const response = await fetch('/api/credits/usage?days=30');
-      if (response.ok) {
-        const data = await response.json();
-        setUsageStats(data.stats);
-        setModelBreakdown(data.modelBreakdown);
-      }
-    } catch (error) {
-      console.error('Failed to fetch usage data:', error);
-    }
-  };
-
-  const handlePurchase = async (packageId: string) => {
-    setPurchaseLoading(packageId);
-    
-    try {
-      // Create payment intent
       const response = await fetch('/api/credits/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ packageId }),
       });
-      
-      if (!response.ok) throw new Error('Failed to create payment');
-      
-      const { paymentIntentId } = await response.json();
-      
-      // Simulate payment confirmation (in real app, this would use Stripe's frontend)
-      const confirmResponse = await fetch('/api/credits/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentIntentId, packageId }),
-      });
-      
-      if (confirmResponse.ok) {
-        const result = await confirmResponse.json();
-        // Refresh data
-        await Promise.all([
-          fetchCreditBalance(),
-          fetchTransactions(),
-          fetchUsageData(),
-        ]);
-        
-        alert(`Successfully added ${formatCurrency(result.creditsAdded)} in credits!`);
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(data.message || 'Credits purchased successfully!');
+        await fetchCredits(); // Refresh credits
       } else {
-        throw new Error('Payment confirmation failed');
+        const errorData = await response.json();
+        alert(errorData.error || 'Purchase failed');
       }
     } catch (error) {
-      console.error('Purchase failed:', error);
-      alert('Purchase failed. Please try again.');
+      console.error('Error purchasing credits:', error);
+      alert('Purchase failed');
     } finally {
-      setPurchaseLoading(null);
+      setPurchasing(null);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case 'purchase':
-        return <Plus className="h-4 w-4 text-green-600" />;
-      case 'usage':
-        return <TrendingDown className="h-4 w-4 text-red-600" />;
-      case 'refund':
-        return <TrendingUp className="h-4 w-4 text-blue-600" />;
-      case 'bonus':
-        return <Zap className="h-4 w-4 text-yellow-600" />;
-      default:
-        return <Activity className="h-4 w-4 text-gray-600" />;
-    }
-  };
-
-  if (loading) {
+  if (!isLoaded) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold mb-4">Credits</h1>
+          <p className="text-muted-foreground mb-8">Please sign in to view and purchase credits.</p>
         </div>
       </div>
     );
@@ -204,119 +85,80 @@ export default function CreditsPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Credits</h1>
         <p className="text-muted-foreground">
-          Manage your account balance and view usage analytics
+          1 Credit = 1 Dollar = 1 API Call. Purchase credits to use our API services.
         </p>
       </div>
 
-      {/* Balance Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Current Balance</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(creditBalance?.balance || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Available credits
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Earned</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(creditBalance?.totalEarned || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              All-time earnings
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Spent</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(creditBalance?.totalSpent || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              All-time usage
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(usageStats?.totalCost || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {usageStats?.totalTokens.toLocaleString() || 0} tokens
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Credit Packages */}
+      {/* Current Balance */}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-yellow-500" />
+            Current Balance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="text-4xl font-bold text-primary">{credits}</div>
+              <div className="text-muted-foreground">
+                <div>Credits Available</div>
+                <div className="text-sm">= ${credits} worth of API calls</div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Purchase Credits */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
-            Buy Credits
+            Purchase Credits
           </CardTitle>
           <CardDescription>
-            Purchase credits to use AI models. Larger packages include bonus credits.
+            Select a credit package below. Each credit allows one API call.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {CREDIT_PACKAGES.map((pkg) => (
               <Card key={pkg.id} className={`relative ${pkg.popular ? 'border-primary' : ''}`}>
                 {pkg.popular && (
-                  <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
-                    <Badge variant="default" className="text-xs">
-                      Popular
-                    </Badge>
-                  </div>
+                  <Badge className="absolute -top-2 left-4 bg-primary">
+                    Popular
+                  </Badge>
                 )}
-                <CardHeader className="text-center pb-4">
+                <CardHeader className="text-center">
                   <CardTitle className="text-lg">{pkg.name}</CardTitle>
-                  <div className="text-2xl font-bold">
-                    {formatCurrency(pkg.credits)}
+                  <div className="text-3xl font-bold text-primary">
+                    ${pkg.price}
                   </div>
-                  {pkg.bonus && (
-                    <div className="text-sm text-green-600 font-medium">
-                      +{formatCurrency(pkg.bonus)} bonus
-                    </div>
-                  )}
+                  <CardDescription>
+                    {pkg.credits} credits • {pkg.credits} API calls
+                  </CardDescription>
                 </CardHeader>
-                <CardContent className="pt-0">
-                  <Button 
-                    className="w-full" 
-                    onClick={() => handlePurchase(pkg.id)}
-                    disabled={purchaseLoading === pkg.id}
+                <CardContent>
+                  <Button
+                    className="w-full"
+                    onClick={() => purchaseCredits(pkg.id)}
+                    disabled={purchasing === pkg.id}
                   >
-                    {purchaseLoading === pkg.id ? (
+                    {purchasing === pkg.id ? (
                       <div className="flex items-center gap-2">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Processing...
+                        Purchasing...
                       </div>
                     ) : (
-                      `Buy for ${formatCurrency(pkg.price / 100)}`
+                      <div className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Purchase ${pkg.price}
+                      </div>
                     )}
                   </Button>
                 </CardContent>
@@ -326,162 +168,40 @@ export default function CreditsPage() {
         </CardContent>
       </Card>
 
-      {/* Tabs for detailed views */}
-      <Tabs defaultValue="transactions" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="transactions">Recent Transactions</TabsTrigger>
-          <TabsTrigger value="usage">Usage Analytics</TabsTrigger>
-          <TabsTrigger value="models">Model Breakdown</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="transactions">
-          <Card>
-            <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
-              <CardDescription>
-                Your recent credit transactions and usage
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {transactions.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No transactions yet
-                  </p>
-                ) : (
-                  transactions.map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        {getTransactionIcon(transaction.type)}
-                        <div>
-                          <div className="font-medium">{transaction.description}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {formatDate(transaction.createdAt)}
-                            {transaction.tokens && (
-                              <span className="ml-2">• {transaction.tokens.toLocaleString()} tokens</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className={`font-medium ${
-                        transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {transaction.amount > 0 ? '+' : ''}{formatCurrency(Math.abs(transaction.amount))}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="usage">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Usage Summary</CardTitle>
-                <CardDescription>Last 30 days</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Total Tokens</span>
-                  <span className="font-bold">
-                    {usageStats?.totalTokens.toLocaleString() || 0}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Total Cost</span>
-                  <span className="font-bold">
-                    {formatCurrency(usageStats?.totalCost || 0)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Average per Day</span>
-                  <span className="font-bold">
-                    {formatCurrency((usageStats?.totalCost || 0) / 30)}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Stats</CardTitle>
-                <CardDescription>Current period insights</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Models Used</span>
-                  <span className="font-bold">{modelBreakdown.length}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Most Used</span>
-                  <span className="font-bold text-sm">
-                    {modelBreakdown[0]?.modelName || 'None'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Highest Cost</span>
-                  <span className="font-bold">
-                    {formatCurrency(modelBreakdown[0]?.cost || 0)}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Usage Info */}
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>How It Works</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Simple Pricing
+              </h3>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• 1 Credit = $1</li>
+                <li>• 1 API Call = 1 Credit</li>
+                <li>• Batch requests = 2 Credits</li>
+                <li>• No hidden fees</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                Usage Examples
+              </h3>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• Chat message: 1 credit</li>
+                <li>• API call: 1 credit</li>
+                <li>• Batch API call: 2 credits</li>
+                <li>• Credits never expire</li>
+              </ul>
+            </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="models">
-          <Card>
-            <CardHeader>
-              <CardTitle>Model Usage Breakdown</CardTitle>
-              <CardDescription>
-                Detailed breakdown by model for the last 30 days
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {modelBreakdown.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No usage data available
-                  </p>
-                ) : (
-                  modelBreakdown.map((model) => (
-                    <div
-                      key={model.modelId}
-                      className="flex items-center justify-between p-4 border rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Activity className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">{model.modelName}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {model.modelVendor} • {model.count} requests
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-medium">
-                          {formatCurrency(model.cost)}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {model.tokens.toLocaleString()} tokens
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

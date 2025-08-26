@@ -1,6 +1,6 @@
 # OpenRouter Clone
 
-A polished, responsive OpenRouter-style frontend built with Next.js 15, featuring three main surfaces: Landing, Models Directory, and Chat interface, plus authentication via NextAuth.
+A polished, responsive OpenRouter-style frontend built with Next.js 15, featuring three main surfaces: Landing, Models Directory, and Chat interface, plus authentication via Clerk.
 
 ## Features
 
@@ -8,13 +8,13 @@ A polished, responsive OpenRouter-style frontend built with Next.js 15, featurin
 - **Models Directory**: Advanced filters sidebar, list/grid view, search and sorting
 - **Chat Interface**: Rooms sidebar, model switching, streaming responses, sample prompts
 - **Rankings**: Model performance rankings table
-- **Authentication**: NextAuth with Credentials, Google, and GitHub providers
+- **Authentication**: Clerk with email/password, Google, and GitHub providers
 - **Mock APIs**: Complete REST + SSE endpoints serving dummy data
 
 ## Tech Stack
 
 - **Framework**: Next.js 15 (App Router) + TypeScript
-- **Auth**: NextAuth (JWT mode)
+- **Auth**: Clerk (managed authentication)
 - **Styling**: TailwindCSS + shadcn/ui + Radix
 - **State**: Zustand for client state
 - **Search**: fuse.js for client-side search
@@ -28,10 +28,10 @@ A polished, responsive OpenRouter-style frontend built with Next.js 15, featurin
    pnpm install
    ```
 
-2. **Set up environment** (optional):
+2. **Set up environment**:
    ```bash
    cp .env.example .env.local
-   # Edit .env.local with your OAuth credentials if needed
+   # Add your Clerk credentials to .env.local
    ```
 
 3. **Run development server**:
@@ -41,11 +41,11 @@ A polished, responsive OpenRouter-style frontend built with Next.js 15, featurin
 
 4. **Open in browser**: http://localhost:3000
 
-## Demo Credentials
+## Admin Access
 
-For testing authentication:
-- **Email**: demo@demo.dev
-- **Password**: demo
+Admin user has been pre-configured:
+- **Email**: projectsnightlight@gmail.com
+- **First-time login**: Requires email verification through Clerk
 
 ## API Endpoints
 
@@ -84,9 +84,10 @@ All APIs include artificial latency for realistic feel:
 - **Persistence**: Zustand + localStorage
 
 ### Authentication
-- **Protected routes**: Chat requires sign-in
-- **Providers**: Credentials (demo), Google, GitHub
-- **Session**: JWT-based with user persistence
+- **Protected routes**: Chat, Credits, and Settings require sign-in
+- **Providers**: Email/password, Google, GitHub (configured via Clerk)
+- **Admin features**: Role-based access control via metadata
+- **Session management**: Handled automatically by Clerk
 
 ## File Structure
 
@@ -97,9 +98,8 @@ app/
 ├── models/page.tsx            # Models directory
 ├── chat/page.tsx              # Chat interface (protected)
 ├── rankings/page.tsx          # Rankings table
-├── signin/page.tsx            # Sign-in page
 ├── api/                       # API routes
-└── middleware.ts              # Rate limiting + auth
+└── middleware.ts              # Rate limiting + auth (Clerk)
 
 src/
 ├── components/
@@ -117,7 +117,7 @@ src/
 │   ├── rooms.ts               # Chat rooms state
 │   └── ui.ts                  # UI preferences
 └── lib/
-    ├── auth.ts                # NextAuth config
+    ├── admin.ts               # Admin utilities and role checking
     ├── utils.ts               # Utility functions
     └── zod-schemas.ts         # API validation
 ```
@@ -160,14 +160,58 @@ The codebase follows modern React patterns:
 - **Zustand** for predictable state management
 - **Tailwind** for utility-first styling
 
+## Environment Variables
+
+Create a `.env.local` file with the following Clerk credentials:
+
+```env
+# Clerk Configuration (Required)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your-publishable-key-here
+CLERK_SECRET_KEY=sk_test_your-secret-key-here
+
+# Clerk Webhook (Optional - for automatic welcome credits)
+CLERK_WEBHOOK_SECRET=whsec_your-clerk-webhook-secret
+
+# App Configuration
+NODE_ENV=development
+```
+
+### Getting Clerk Credentials
+
+1. Go to [Clerk Dashboard](https://dashboard.clerk.com)
+2. Create a new application (or use existing)
+3. Go to "API Keys" in your Clerk dashboard
+4. Copy the publishable key and secret key
+5. Add them to your `.env.local` file
+
+### Clerk Credit System Features
+
+The application now uses Clerk's user metadata system for complete credit management:
+
+- **User Credits**: Stored securely in Clerk's private metadata
+- **Transaction History**: Automatically tracked per user
+- **Welcome Credits**: New users receive $5 automatically
+- **Purchase System**: Simulated credit purchases (ready for real Stripe integration)
+- **Usage Tracking**: API usage automatically deducts from user credits
+- **Admin Controls**: Admin users can manage credits for all users
+
+### Optional Webhook Setup
+
+For automatic welcome credits when users sign up:
+
+1. Go to Clerk Dashboard → Webhooks
+2. Create a new endpoint: `https://yourdomain.com/api/webhooks/clerk`
+3. Subscribe to `user.created` events
+4. Copy the signing secret to `CLERK_WEBHOOK_SECRET`
+
 ## Production Deployment
 
 Before deploying:
-1. Set `NEXTAUTH_SECRET` in production
-2. Configure OAuth credentials
-3. Replace mock APIs with real data sources
-4. Set up proper rate limiting
-5. Configure CORS for API access
+1. Set up Clerk production environment with your domain
+2. Configure OAuth providers (Google, GitHub) in Clerk Dashboard
+3. Set production environment variables
+4. Replace mock APIs with real data sources
+5. Configure proper rate limiting and CORS
 
 ## License
 

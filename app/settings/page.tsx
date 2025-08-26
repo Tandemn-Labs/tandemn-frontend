@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +36,7 @@ interface RawEvent {
 }
 
 export default function SettingsPage() {
-  const { data: session } = useSession();
+  const { user, isSignedIn } = useUser();
   const [rawEvents, setRawEvents] = useState<RawEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -64,7 +64,7 @@ export default function SettingsPage() {
         id: `evt_${Date.now()}_${i}`,
         timestamp,
         type: eventType,
-        userId: session?.user?.id || 'demo-user',
+        userId: user?.id || 'demo-user',
         data: {}
       };
 
@@ -142,7 +142,7 @@ export default function SettingsPage() {
       const interval = setInterval(loadEvents, 5000);
       return () => clearInterval(interval);
     }
-  }, [autoRefresh, session]);
+  }, [autoRefresh, user]);
 
   const exportEvents = () => {
     const dataStr = JSON.stringify(rawEvents, null, 2);
@@ -319,11 +319,11 @@ export default function SettingsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Name</label>
-                  <p className="text-sm text-muted-foreground">{session?.user?.name || 'Demo User'}</p>
+                  <p className="text-sm text-muted-foreground">{user?.fullName || user?.firstName || 'Demo User'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Email</label>
-                  <p className="text-sm text-muted-foreground">{session?.user?.email || 'demo@demo.dev'}</p>
+                  <p className="text-sm text-muted-foreground">{user?.primaryEmailAddress?.emailAddress || 'demo@demo.dev'}</p>
                 </div>
               </div>
             </CardContent>

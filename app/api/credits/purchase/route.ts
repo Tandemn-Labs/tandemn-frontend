@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { db } from '@/mock/db';
-import { createDummyPaymentIntent, CREDIT_PACKAGES } from '@/lib/stripe';
+import { auth } from '@clerk/nextjs/server';
+import { purchaseCredits, CREDIT_PACKAGES } from '@/lib/credits';
 import { sleep } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
     await sleep(200);
     
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -34,24 +32,21 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Create dummy payment intent
-    const paymentIntent = await createDummyPaymentIntent(
-      creditPackage.price,
-      'usd'
-    );
+    // Process credit purchase through Clerk metadata
+    const result = await purchaseCredits(packageId, userId);
     
-    // Store pending transaction in database
-    const userId = session.user.id === 'demo' ? 'demo-user' : session.user.id;
-    const totalCredits = creditPackage.credits + (creditPackage.bonus || 0);
-    
-    return NextResponse.json({
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-      package: {
-        ...creditPackage,
-        totalCredits,
-      },
-    });
+    if (result.success) {
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        package: creditPackage,
+      });
+    } else {
+      return NextResponse.json(
+        { error: result.message },
+        { status: 400 }
+      );
+    }
   } catch (error) {
     console.error('Error in /api/credits/purchase:', error);
     return NextResponse.json(

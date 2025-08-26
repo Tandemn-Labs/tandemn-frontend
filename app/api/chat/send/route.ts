@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@clerk/nextjs/server';
 import { db } from '@/mock/db';
 import { chatSendSchema } from '@/lib/zod-schemas';
+import { chargeCredits, getUserCredits } from '@/lib/credits';
 import { sleep } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id || 'anonymous';
+    const { userId } = await auth();
+    const finalUserId = userId || 'anonymous';
     
     const body = await request.json();
     const { modelId, roomId, messages } = chatSendSchema.parse(body);
@@ -20,6 +20,19 @@ export async function POST(request: NextRequest) {
         { error: 'Model not found' },
         { status: 404 }
       );
+    }
+
+    // Check user credits for authenticated users (1 credit per request)
+    if (userId) {
+      const userCredits = await getUserCredits(userId);
+      const creditCost = 1;
+      
+      if (userCredits < creditCost) {
+        return NextResponse.json(
+          { error: 'Insufficient credits. Please purchase more credits to continue.' },
+          { status: 402 } // Payment Required
+        );
+      }
     }
     
     // Calculate approximate token usage
@@ -46,7 +59,7 @@ export async function POST(request: NextRequest) {
     
     // Create assistant message for tracking (only if we have a roomId)
     let newMessage: any = null;
-    if (roomId && session?.user?.id) {
+    if (roomId && userId) {
       newMessage = db.addMessage({
         roomId,
         role: 'assistant',
@@ -65,8 +78,8 @@ export async function POST(request: NextRequest) {
         const sendChunk = async () => {
           if (currentIndex >= words.length) {
             // Track usage if user is authenticated
-            if (session?.user?.id) {
-              const trackingUserId = session.user.id === 'demo' ? 'demo-user' : session.user.id;
+            if (userId) {
+              const trackingUserId = userId === 'demo' ? 'demo-user' : userId;
               
               // Record usage in database
               db.addUsage({
@@ -80,18 +93,12 @@ export async function POST(request: NextRequest) {
                 cost: totalCost,
               });
               
-              // Deduct credits from user balance
-              db.addTransaction({
-                userId: trackingUserId,
-                type: 'usage',
-                amount: -totalCost,
-                description: `Used ${model.name} - ${totalTokens} tokens`,
-                modelId: model.id,
-                tokens: totalTokens,
-                metadata: {
-                  roomId: roomId || undefined,
-                  messageId: newMessage?.id,
-                },
+              // Charge 1 credit for chat usage
+              await chargeCredits(1, `Chat: ${model.name}`, userId, { 
+                modelId: model.id, 
+                roomId, 
+                inputTokens, 
+                outputTokens 
               });
             }
             

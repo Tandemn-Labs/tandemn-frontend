@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { auth } from '@clerk/nextjs/server';
 import { db } from '@/mock/db';
 
 export async function DELETE(
@@ -8,12 +7,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id || 'anonymous';
+    const { userId } = await auth();
+    const finalUserId = userId || 'anonymous';
     
     const { id } = await params;
     const roomId = id;
-    const success = db.deleteRoom(userId, roomId);
+    const success = db.deleteRoom(finalUserId, roomId);
     
     if (!success) {
       return NextResponse.json(

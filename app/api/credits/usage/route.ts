@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { db } from '@/mock/db';
+import { auth } from '@clerk/nextjs/server';
+import { getTransactionHistory } from '@/lib/credits';
 import { sleep } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
     await sleep(100);
     
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -18,46 +17,55 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '30');
-    const limit = parseInt(searchParams.get('limit') || '20');
     
-    const userId = session.user.id === 'demo' ? 'demo-user' : session.user.id;
+    // Get transaction history from Clerk metadata
+    const transactions = await getTransactionHistory(userId);
     
-    // Get usage statistics
-    const stats = db.getUserUsageStats(userId, days);
+    // Filter transactions for the specified period
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
     
-    // Get detailed usage records
-    const usageRecords = db.getUserUsage(userId, limit);
+    const recentTransactions = transactions.filter(t => 
+      new Date(t.createdAt) >= cutoffDate && t.type === 'usage_charge'
+    );
     
-    // Enhance usage records with model information
-    const enhancedUsage = usageRecords.map(usage => {
-      const model = db.getModelById(usage.modelId);
-      return {
-        ...usage,
-        modelName: model?.name || 'Unknown Model',
-        modelVendor: model?.vendor || 'Unknown',
-        modelSeries: model?.series || 'Other',
-      };
-    });
+    // Calculate usage stats
+    const totalTokens = recentTransactions.reduce((sum, t) => 
+      sum + ((t.metadata?.inputTokens || 0) + (t.metadata?.outputTokens || 0)), 0
+    );
     
-    // Format model breakdown for easier consumption
-    const modelBreakdown = Object.entries(stats.modelBreakdown).map(([modelId, data]) => {
-      const model = db.getModelById(modelId);
-      return {
-        modelId,
-        modelName: model?.name || 'Unknown Model',
-        modelVendor: model?.vendor || 'Unknown',
-        ...data,
-      };
-    }).sort((a, b) => b.cost - a.cost); // Sort by cost descending
+    const totalCost = recentTransactions.reduce((sum, t) => 
+      sum + Math.abs(t.amount), 0
+    );
+    
+    // Group usage by model
+    const modelUsage = recentTransactions.reduce((acc, t) => {
+      const modelId = t.metadata?.modelId || 'unknown';
+      if (!acc[modelId]) {
+        acc[modelId] = {
+          modelId,
+          totalTokens: 0,
+          totalCost: 0,
+          requestCount: 0,
+        };
+      }
+      
+      acc[modelId].totalTokens += (t.metadata?.inputTokens || 0) + (t.metadata?.outputTokens || 0);
+      acc[modelId].totalCost += Math.abs(t.amount);
+      acc[modelId].requestCount += 1;
+      
+      return acc;
+    }, {} as Record<string, any>);
     
     return NextResponse.json({
-      stats: {
-        totalTokens: stats.totalTokens,
-        totalCost: stats.totalCost,
+      usage: {
+        totalTokens,
+        totalCost,
         period: `${days} days`,
+        requestCount: recentTransactions.length,
       },
-      modelBreakdown,
-      recentUsage: enhancedUsage,
+      models: Object.values(modelUsage),
+      transactions: recentTransactions.slice(0, 20), // Latest 20 for timeline
     });
   } catch (error) {
     console.error('Error in /api/credits/usage:', error);

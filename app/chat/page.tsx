@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useUser } from '@clerk/nextjs';
 import { useSearchParams } from 'next/navigation';
 import { Plus, MessageSquare, Settings, Send, Paperclip, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { ChatRoom, Message, Model } from '@/mock/types';
 import { GPUUtilization } from '@/components/gpu-utilization';
 
 export default function ChatPage() {
-  const { data: session } = useSession();
+  const { user, isSignedIn } = useUser();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q');
   
@@ -71,10 +71,10 @@ export default function ChatPage() {
       }
     };
     
-    if (session) {
+    if (isSignedIn) {
       fetchRooms();
     }
-  }, [session, currentModel, initialQuery]);
+  }, [isSignedIn, currentModel, initialQuery]);
 
   const createNewRoom = async (title?: string) => {
     if (!currentModel) return;
