@@ -30,8 +30,11 @@ export async function addCredits(userId: string, amount: number): Promise<boolea
     const currentCredits = await getUserCredits(userId);
     const newCredits = currentCredits + amount;
 
+    // Get current user data to preserve existing metadata
+    const user = await clerkClient.users.getUser(userId);
     await clerkClient.users.updateUser(userId, {
       privateMetadata: {
+        ...user.privateMetadata, // Preserve existing metadata like apiKeys
         credits: newCredits,
         lastCreditUpdate: new Date().toISOString(),
       },
@@ -55,8 +58,11 @@ export async function deductCredits(userId: string, amount: number): Promise<boo
 
     const newCredits = currentCredits - amount;
 
+    // Get current user data to preserve existing metadata
+    const user = await clerkClient.users.getUser(userId);
     await clerkClient.users.updateUser(userId, {
       privateMetadata: {
+        ...user.privateMetadata, // Preserve existing metadata like apiKeys
         credits: newCredits,
         lastCreditUpdate: new Date().toISOString(),
       },
