@@ -145,7 +145,7 @@ export default function APIKeysPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">API Keys</h1>
         <p className="text-muted-foreground">
-          Generate API keys to access our services programmatically. Each API call costs 1 credit, batch requests cost 2 credits.
+          Generate API keys to access our services programmatically. Pricing is based on tokens consumed (~10 input tokens or ~5 output tokens = $1).
         </p>
       </div>
 
@@ -218,7 +218,7 @@ export default function APIKeysPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <h4 className="font-semibold mb-2">Standard API Call (1 credit):</h4>
+            <h4 className="font-semibold mb-2">Standard API Call (~$0.10-0.50):</h4>
             <pre className="bg-gray-100 p-3 rounded text-sm overflow-x-auto">
 {`curl -X POST https://yourdomain.com/api/v1/chat \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
@@ -230,7 +230,7 @@ export default function APIKeysPage() {
             </pre>
           </div>
           <div>
-            <h4 className="font-semibold mb-2">Batch Request (2 credits):</h4>
+            <h4 className="font-semibold mb-2">Batch Request (2x tokens):</h4>
             <pre className="bg-gray-100 p-3 rounded text-sm overflow-x-auto">
 {`curl -X POST https://yourdomain.com/api/v1/chat?batch=1 \\
   -H "Authorization: Bearer YOUR_API_KEY" \\

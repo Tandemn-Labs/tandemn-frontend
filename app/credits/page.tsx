@@ -85,7 +85,7 @@ export default function CreditsPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Credits</h1>
         <p className="text-muted-foreground">
-          1 Credit = 1 Dollar = 1 API Call. Purchase credits to use our API services.
+          Token-based pricing: ~10 input tokens or ~5 output tokens = $1. Purchase credits to use our API services.
         </p>
       </div>
 
@@ -104,10 +104,10 @@ export default function CreditsPage() {
             </div>
           ) : (
             <div className="flex items-center gap-4">
-              <div className="text-4xl font-bold text-primary">{credits}</div>
+              <div className="text-4xl font-bold text-primary">${credits.toFixed(2)}</div>
               <div className="text-muted-foreground">
                 <div>Credits Available</div>
-                <div className="text-sm">= ${credits} worth of API calls</div>
+                <div className="text-sm">~{Math.floor(credits * 10)} input tokens or ~{Math.floor(credits * 5)} output tokens</div>
               </div>
             </div>
           )}
@@ -140,7 +140,7 @@ export default function CreditsPage() {
                     ${pkg.price}
                   </div>
                   <CardDescription>
-                    {pkg.credits} credits • {pkg.credits} API calls
+                    ${pkg.credits} credits • ~{pkg.credits * 10} input tokens • ~{pkg.credits * 5} output tokens
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -181,9 +181,10 @@ export default function CreditsPage() {
                 Simple Pricing
               </h3>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• 1 Credit = $1</li>
-                <li>• 1 API Call = 1 Credit</li>
-                <li>• Batch requests = 2 Credits</li>
+                <li>• Token-based pricing</li>
+                <li>• ~10 input tokens = $1</li>
+                <li>• ~5 output tokens = $1</li>
+                <li>• Batch requests = 2x tokens</li>
                 <li>• No hidden fees</li>
               </ul>
             </div>
@@ -193,9 +194,9 @@ export default function CreditsPage() {
                 Usage Examples
               </h3>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Chat message: 1 credit</li>
-                <li>• API call: 1 credit</li>
-                <li>• Batch API call: 2 credits</li>
+                <li>• Short chat: ~$0.10-0.50</li>
+                <li>• Long analysis: ~$0.50-2.00</li>
+                <li>• Batch requests: 2x cost</li>
                 <li>• Credits never expire</li>
               </ul>
             </div>

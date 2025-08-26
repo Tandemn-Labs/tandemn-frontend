@@ -160,9 +160,57 @@ export async function purchaseCredits(packageId: string, userId?: string): Promi
   }
 }
 
-// Charge credits for API usage (simple 1 credit per call)
+// Calculate cost based on token usage and model pricing
+export function calculateTokenCost(modelId: string, inputTokens: number, outputTokens: number): number {
+  let model = null;
+  
+  try {
+    // Try to get model from mock database
+    const { db } = require('@/mock/db');
+    model = db.getModelById(modelId);
+  } catch (error) {
+    // Fallback if mock db is not available
+    console.warn('Mock database not available, using fallback pricing');
+  }
+  
+  if (!model) {
+    // Fallback pricing if model not found: $1000/1M input, $2000/1M output (for testing)
+    const inputCost = (inputTokens / 1000000) * 1000.0;
+    const outputCost = (outputTokens / 1000000) * 2000.0;
+    const totalCost = inputCost + outputCost;
+    
+    // Ensure minimum charge of $0.01 for any API call with tokens > 0
+    const minCost = (inputTokens > 0 || outputTokens > 0) ? 0.01 : 0;
+    const finalCost = Math.max(totalCost, minCost);
+    
+    return Math.round(finalCost * 100) / 100;
+  }
+  
+  // Calculate cost using model's specific pricing
+  const inputCost = (inputTokens / 1000000) * model.promptPrice;
+  const outputCost = (outputTokens / 1000000) * model.completionPrice;
+  const totalCost = inputCost + outputCost;
+  
+  // Ensure minimum charge of $0.01 for any API call with tokens > 0
+  const minCost = (inputTokens > 0 || outputTokens > 0) ? 0.01 : 0;
+  const finalCost = Math.max(totalCost, minCost);
+  
+  // Round to 2 decimal places
+  return Math.round(finalCost * 100) / 100;
+}
+
+// Charge credits for API usage based on token consumption
 export async function chargeForUsage(modelId: string, inputTokens: number, outputTokens: number, userId?: string): Promise<boolean> {
-  return await chargeCredits(1, `Used ${modelId}`, userId, { modelId, inputTokens, outputTokens });
+  const cost = calculateTokenCost(modelId, inputTokens, outputTokens);
+  const description = `${modelId}: ${inputTokens} input + ${outputTokens} output tokens`;
+  
+  return await chargeCredits(cost, description, userId, { 
+    modelId, 
+    inputTokens, 
+    outputTokens, 
+    costPerInputToken: inputTokens > 0 ? (cost * (inputTokens / (inputTokens + outputTokens)) / inputTokens * 1000000) : 0,
+    costPerOutputToken: outputTokens > 0 ? (cost * (outputTokens / (inputTokens + outputTokens)) / outputTokens * 1000000) : 0
+  });
 }
 
 // Charge credits for API calls (1 credit standard, 2 for batch)

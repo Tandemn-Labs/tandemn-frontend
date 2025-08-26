@@ -73,8 +73,29 @@ export function generateModels(count: number = 500): Model[] {
     const contextOptions = [4096, 8192, 16384, 32768, 65536, 131072, 200000, 1000000];
     const context = randomChoice(contextOptions, i * 17);
     
-    const promptPrice = randomFloat(0.1, 15.0, i * 19);
-    const completionPrice = randomFloat(promptPrice, promptPrice * 4, i * 23);
+    // Token-based pricing: Higher rates for testing
+    // Base rates: $1000/1M input tokens, $2000/1M output tokens  
+    // This means ~10 input tokens = $1, ~5 output tokens = $1
+    // Different models have different multipliers
+    const pricingTiers = {
+      'openai': { inputMultiplier: 1.5, outputMultiplier: 1.5 },   // Premium pricing
+      'anthropic': { inputMultiplier: 1.2, outputMultiplier: 1.2 }, // High-end
+      'google': { inputMultiplier: 0.8, outputMultiplier: 0.8 },    // Competitive
+      'mistral': { inputMultiplier: 0.6, outputMultiplier: 0.6 },   // Mid-range
+      'meta': { inputMultiplier: 0.4, outputMultiplier: 0.4 },      // Open source, lower cost
+      'perplexity': { inputMultiplier: 0.7, outputMultiplier: 0.7 }, // Specialty
+      'cohere': { inputMultiplier: 0.9, outputMultiplier: 0.9 },    // Business focused
+      'groq': { inputMultiplier: 0.3, outputMultiplier: 0.3 },      // Fast, low cost
+    };
+    
+    const baseTier = pricingTiers[vendor as keyof typeof pricingTiers] || { inputMultiplier: 1.0, outputMultiplier: 1.0 };
+    
+    // Add some model-specific variation (±30%)
+    const modelVariation = randomFloat(0.7, 1.3, i * 19);
+    
+    // Base: $1000/1M input tokens, $2000/1M output tokens (100x higher for testing)
+    const promptPrice = Math.round((1000.0 * baseTier.inputMultiplier * modelVariation) * 100) / 100;
+    const completionPrice = Math.round((2000.0 * baseTier.outputMultiplier * modelVariation) * 100) / 100;
     
     const tokensPerWeek = randomInt(1000000, 500000000000, i * 29);
     const latencyMs = randomInt(200, 8000, i * 31);
