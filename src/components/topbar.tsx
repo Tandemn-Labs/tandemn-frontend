@@ -31,7 +31,8 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
     { href: '/rankings', label: 'Rankings' },
     { href: '/keys', label: 'API Keys' },
     { href: '/credits', label: 'Credits' },
-    { href: '/settings', label: 'Settings' }
+    { href: '/settings', label: 'Settings' },
+    { href: '/loadtest', label: 'Load Test' }
   ];
 
   return (

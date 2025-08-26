@@ -16,6 +16,11 @@ export async function getUserCredits(userId?: string): Promise<number> {
     const userIdToUse = userId || (await auth()).userId;
     if (!userIdToUse) return 0;
 
+    // Load testing bypass - provide unlimited credits for testing
+    if (process.env.NODE_ENV === 'development' && userIdToUse === 'test-user-loadtest') {
+      return 10000; // Plenty of credits for load testing
+    }
+
     const user = await clerkClient.users.getUser(userIdToUse);
     return (user.privateMetadata?.credits as number) || 0;
   } catch (error) {
@@ -219,6 +224,11 @@ export async function chargeCredits(amount: number, description: string, userId?
     const userIdToUse = userId || (await auth()).userId;
     if (!userIdToUse) return false;
 
+    // Load testing bypass - always succeed for test user
+    if (process.env.NODE_ENV === 'development' && userIdToUse === 'test-user-loadtest') {
+      return true; // Always successful charge for load testing
+    }
+
     const success = await deductCredits(userIdToUse, amount);
     
     if (success) {
@@ -327,6 +337,22 @@ export async function validateAPIKey(apiKey: string): Promise<{ valid: boolean; 
   try {
     // Extract user ID hint from API key format: gk-{userIdHint}_{random}
     if (!apiKey.startsWith('gk-')) return { valid: false };
+    
+    // Load testing bypass
+    if (process.env.NODE_ENV === 'development' && apiKey === 'gk-loadtest_12345678901234567890') {
+      return {
+        valid: true,
+        userId: 'test-user-loadtest',
+        keyInfo: {
+          id: 'test-key-id',
+          key: apiKey,
+          name: 'Load Test Key',
+          isActive: true,
+          lastUsed: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        }
+      };
+    }
     
     const parts = apiKey.substring(3).split('_'); // Remove 'gk-' prefix and split
     const userIdHint = parts[0];

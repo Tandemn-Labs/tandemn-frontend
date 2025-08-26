@@ -35,10 +35,11 @@ const isProtectedRoute = createRouteMatcher([
 ])
 
 export default clerkMiddleware((auth, req) => {
-  // Apply rate limiting to API routes
+  // Apply rate limiting to API routes (relaxed for development/testing)
   if (req.nextUrl.pathname.startsWith('/api/')) {
     const key = getRateLimitKey(req)
-    const allowed = checkRateLimit(key)
+    // Increased limits for load testing: 1000 requests per minute
+    const allowed = checkRateLimit(key, 1000, 60000)
     
     if (!allowed) {
       return NextResponse.json(
