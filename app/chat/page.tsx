@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useSearchParams } from 'next/navigation';
 import { Plus, MessageSquare, Settings, Send, Paperclip, Globe } from 'lucide-react';
@@ -12,7 +12,7 @@ import { useRoomsStore } from '@/store/rooms';
 import { ChatRoom, Message, Model } from '@/mock/types';
 import { GPUUtilization } from '@/components/gpu-utilization';
 
-export default function ChatPage() {
+function ChatPageContent() {
   const { user, isSignedIn } = useUser();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q');
@@ -367,5 +367,17 @@ export default function ChatPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <ChatPageContent />
+    </Suspense>
   );
 }

@@ -135,7 +135,7 @@ export async function purchaseCredits(packageId: string, userId?: string): Promi
     // 2. Handle the payment through Clerk's Stripe integration
     // 3. Add credits upon successful payment
 
-    const creditsToAdd = creditPackage.credits + (creditPackage.bonus || 0);
+    const creditsToAdd = creditPackage.credits;
     const success = await addCredits(userIdToUse, creditsToAdd);
 
     if (success) {

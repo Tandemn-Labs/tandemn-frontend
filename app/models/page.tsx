@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, Grid, List, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { ModelCard } from '@/components/model-card';
 import { useUIStore } from '@/store/ui';
 import { Model, ModelsResponse } from '@/mock/types';
 
-export default function ModelsPage() {
+function ModelsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { modelsView, setModelsView } = useUIStore();
@@ -233,5 +233,25 @@ export default function ModelsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ModelsPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-muted rounded-lg w-64 mb-4" />
+          <div className="h-4 bg-muted rounded-lg w-96 mb-8" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="bg-muted rounded-lg h-32" />
+            ))}
+          </div>
+        </div>
+      </div>
+    }>
+      <ModelsPageContent />
+    </Suspense>
   );
 }
