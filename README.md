@@ -39,7 +39,7 @@ A polished, responsive OpenRouter-style frontend built with Next.js 15, featurin
    pnpm dev
    ```
 
-4. **Open in browser**: http://localhost:3000
+4. **Open in browser**: http://loecalhost:3000
 
 ## Admin Access
 
