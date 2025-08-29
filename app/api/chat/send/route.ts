@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       const tandemnRequest = {
         model_name: model.id,
         input_text: conversationText,
-        max_tokens: 150,
+        max_tokens: 2000,
         messages: messages, // Pass full conversation history
       };
       
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
         const openRouterRequest = {
           model: openRouterModel,
           messages: messages,
-          max_tokens: 150,
+          max_tokens: 2000,
         };
         
         console.log('🔄 FALLBACK: Using OpenRouter API with model:', model.id, '→', openRouterModel);
