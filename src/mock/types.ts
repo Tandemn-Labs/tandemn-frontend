@@ -1,7 +1,7 @@
 export type Model = {
   id: string;               // "google/gemini-2.5-pro"
   vendor: string;           // "google"
-  series: 'GPT' | 'Claude' | 'Gemini' | 'Mistral' | 'Llama' | 'Other';
+  series: 'GPT' | 'Claude' | 'Gemini' | 'Mistral' | 'Llama' | 'DeepSeek' | 'Qwen' | 'Phi' | 'Other';
   name: string;             // "Gemini 2.5 Pro"
   short: string;            // "gemini-2.5-pro"
   context: number;          // tokens
@@ -29,6 +29,7 @@ export type Message = {
   content: string;
   createdAt: string;
   roomId: string;
+  backend?: 'tandemn' | 'openrouter' | 'mock';
 };
 
 export type KPIStats = {

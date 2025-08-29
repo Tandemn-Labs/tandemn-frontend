@@ -1,5 +1,6 @@
 import { Model, ChatRoom, Message, ModelsFilter, RankingModel, User, Transaction, Usage, CreditBalance } from './types';
 import { generateModels, getFeaturedModels, getKPIStats } from './seed';
+import { getModelById as getModelByIdFromConfig } from '@/lib/models-config';
 
 // In-memory database
 export class MockDB {
@@ -219,7 +220,8 @@ export class MockDB {
   }
   
   getModelById(id: string): Model | undefined {
-    return this.models.find(model => model.id === id);
+    // Use centralized configuration
+    return getModelByIdFromConfig(id);
   }
   
   getFeatured() {
