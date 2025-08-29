@@ -10,6 +10,7 @@ export interface TandemnInferenceRequest {
   model_name: string;
   input_text: string;
   max_tokens: number;
+  messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>; // Added for conversation support
 }
 
 export interface TandemnInferenceResponse {
@@ -129,10 +130,10 @@ export class TandemnClient {
       // Map Tandemn model to OpenRouter model
       const openRouterModel = mapModelToOpenRouter(request.model_name);
       
-      // Create OpenRouter request
+      // Create OpenRouter request using conversation history if available
       const openRouterRequest = {
         model: openRouterModel,
-        messages: [
+        messages: request.messages || [
           {
             role: 'user' as const,
             content: request.input_text,
@@ -142,6 +143,7 @@ export class TandemnClient {
       };
 
       console.log('🤖 MOCK TANDEMN: Calling OpenRouter with model:', openRouterModel);
+      console.log('🤖 MOCK TANDEMN: Conversation length:', openRouterRequest.messages.length, 'messages');
       
       // Call OpenRouter
       const openRouterResponse = await openRouterClient.chatWithTimeout(openRouterRequest, timeoutMs);

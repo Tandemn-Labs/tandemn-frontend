@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { db } from '@/mock/db';
+import { ConversationService } from '@/lib/services/conversationService';
 
 export async function DELETE(
   request: NextRequest,
@@ -8,15 +8,23 @@ export async function DELETE(
 ) {
   try {
     const { userId } = await auth();
-    const finalUserId = userId || 'anonymous';
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
     
     const { id } = await params;
-    const roomId = id;
-    const success = db.deleteRoom(finalUserId, roomId);
+    const conversationId = id;
+    
+    // Delete conversation from MongoDB with user access control
+    const success = await ConversationService.deleteConversation(conversationId, userId);
     
     if (!success) {
       return NextResponse.json(
-        { error: 'Room not found or access denied' },
+        { error: 'Conversation not found or access denied' },
         { status: 404 }
       );
     }

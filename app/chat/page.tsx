@@ -29,7 +29,17 @@ function ChatPageContent() {
     setActiveRoom,
     addMessage,
     updateMessage,
+    loadMessages,
   } = useRoomsStore();
+
+  // Custom function to handle room selection and load messages
+  const handleSetActiveRoom = (roomId: string | null) => {
+    setActiveRoom(roomId);
+    // Load messages when room is selected
+    if (roomId && !messages[roomId]) {
+      loadMessages(roomId);
+    }
+  };
 
   const [models, setModels] = useState<Model[]>([]);
   const [currentModel, setCurrentModel] = useState<Model | null>(null);
@@ -54,7 +64,11 @@ function ChatPageContent() {
         const data = await response.json();
         setModels(data.items || []);
         if (data.items?.length > 0) {
-          setCurrentModel(data.items[0]);
+          // Prefer DeepSeek as the default model, fall back to first available
+          const deepseekModel = data.items.find((model: Model) => 
+            model.id.includes('deepseek') || model.name.toLowerCase().includes('deepseek')
+          );
+          setCurrentModel(deepseekModel || data.items[0]);
         }
       } catch (error) {
         console.error('Failed to fetch models:', error);
@@ -100,7 +114,7 @@ function ChatPageContent() {
       
       const newRoom = await response.json();
       addRoom(newRoom);
-      setActiveRoom(newRoom.id);
+      handleSetActiveRoom(newRoom.id);
       
       // If we had an initial query, send it
       if (initialQuery && title === initialQuery) {
@@ -128,12 +142,22 @@ function ChatPageContent() {
     setShowGPUUtilization(true);
 
     try {
+      // Build conversation history including the new user message
+      const conversationHistory = [
+        ...roomMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        { role: 'user', content: content.trim() }
+      ];
+
       const response = await fetch('/api/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           modelId: currentModel.id,
-          messages: [{ role: 'user', content: content.trim() }],
+          roomId: activeRoomId,
+          messages: conversationHistory,
         }),
       });
 
@@ -239,7 +263,7 @@ function ChatPageContent() {
                   className={`cursor-pointer transition-colors hover:bg-muted/50 ${
                     activeRoomId === room.id ? 'bg-muted' : ''
                   }`}
-                  onClick={() => setActiveRoom(room.id)}
+                  onClick={() => handleSetActiveRoom(room.id)}
                 >
                   <CardContent className="p-3">
                     <h3 className="font-medium text-sm line-clamp-1">
