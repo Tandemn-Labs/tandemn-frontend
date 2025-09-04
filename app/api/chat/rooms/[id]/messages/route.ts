@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { ConversationService } from '@/lib/services/conversationService';
 
-export async function DELETE(
+export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -19,19 +19,31 @@ export async function DELETE(
     const { id } = await params;
     const conversationId = id;
     
-    // Delete conversation from MongoDB with user access control
-    const success = await ConversationService.deleteConversation(conversationId, userId);
+    // Get messages from MongoDB with decryption and user access control
+    const messages = await ConversationService.getMessages(conversationId, userId);
     
-    if (!success) {
+    // Transform to match expected message format
+    const transformedMessages = messages.map(msg => ({
+      id: msg.id,
+      roomId: conversationId,
+      role: msg.role,
+      content: msg.content,
+      createdAt: msg.createdAt,
+      updatedAt: msg.updatedAt,
+      backend: msg.metadata?.backend,
+    }));
+    
+    return NextResponse.json({ items: transformedMessages });
+  } catch (error) {
+    console.error('Error in GET /api/chat/rooms/[id]/messages:', error);
+    
+    if (error instanceof Error && error.message.includes('access denied')) {
       return NextResponse.json(
         { error: 'Conversation not found or access denied' },
         { status: 404 }
       );
     }
     
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error in DELETE /api/chat/rooms/[id]:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

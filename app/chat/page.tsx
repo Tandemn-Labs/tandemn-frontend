@@ -11,6 +11,9 @@ import { Badge } from '@/components/ui/badge';
 import { useRoomsStore } from '@/store/rooms';
 import { ChatRoom, Message, Model } from '@/mock/types';
 import { GPUUtilization } from '@/components/gpu-utilization';
+import { BackendIndicator } from '@/components/backend-indicator';
+import { TandemnHealth } from '@/components/tandemn-health';
+import { FallbackNotification } from '@/components/fallback-notification';
 
 function ChatPageContent() {
   const { user, isSignedIn } = useUser();
@@ -26,13 +29,29 @@ function ChatPageContent() {
     setActiveRoom,
     addMessage,
     updateMessage,
+    loadMessages,
   } = useRoomsStore();
+
+  // Custom function to handle room selection and load messages
+  const handleSetActiveRoom = (roomId: string | null) => {
+    setActiveRoom(roomId);
+    // Load messages when room is selected
+    if (roomId && !messages[roomId]) {
+      loadMessages(roomId);
+    }
+  };
 
   const [models, setModels] = useState<Model[]>([]);
   const [currentModel, setCurrentModel] = useState<Model | null>(null);
   const [inputMessage, setInputMessage] = useState(initialQuery || '');
   const [isStreaming, setIsStreaming] = useState(false);
   const [showGPUUtilization, setShowGPUUtilization] = useState(false);
+  const [lastBackendUsed, setLastBackendUsed] = useState<'tandemn' | 'openrouter' | 'mock'>('mock');
+
+  // Debug: Monitor backend changes
+  useEffect(() => {
+    console.log('🔄 Chat: lastBackendUsed changed to:', lastBackendUsed);
+  }, [lastBackendUsed]);
 
   const activeRoom = rooms.find(room => room.id === activeRoomId);
   const roomMessages = activeRoomId ? messages[activeRoomId] || [] : [];
@@ -45,7 +64,11 @@ function ChatPageContent() {
         const data = await response.json();
         setModels(data.items || []);
         if (data.items?.length > 0) {
-          setCurrentModel(data.items[0]);
+          // Prefer DeepSeek as the default model, fall back to first available
+          const deepseekModel = data.items.find((model: Model) => 
+            model.id.includes('deepseek') || model.name.toLowerCase().includes('deepseek')
+          );
+          setCurrentModel(deepseekModel || data.items[0]);
         }
       } catch (error) {
         console.error('Failed to fetch models:', error);
@@ -91,7 +114,7 @@ function ChatPageContent() {
       
       const newRoom = await response.json();
       addRoom(newRoom);
-      setActiveRoom(newRoom.id);
+      handleSetActiveRoom(newRoom.id);
       
       // If we had an initial query, send it
       if (initialQuery && title === initialQuery) {
@@ -119,12 +142,22 @@ function ChatPageContent() {
     setShowGPUUtilization(true);
 
     try {
+      // Build conversation history including the new user message
+      const conversationHistory = [
+        ...roomMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        { role: 'user', content: content.trim() }
+      ];
+
       const response = await fetch('/api/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           modelId: currentModel.id,
-          messages: [{ role: 'user', content: content.trim() }],
+          roomId: activeRoomId,
+          messages: conversationHistory,
         }),
       });
 
@@ -134,6 +167,7 @@ function ChatPageContent() {
       if (!reader) throw new Error('No response stream');
 
       let assistantContent = '';
+      let backendUsed: 'tandemn' | 'openrouter' | 'mock' = 'mock';
       const assistantMessageId = `msg_${Date.now()}_assistant`;
       const assistantMessage: Message = {
         id: assistantMessageId,
@@ -161,6 +195,14 @@ function ChatPageContent() {
                 assistantContent += data.text;
                 // Update the existing message using the new updateMessage method
                 updateMessage(activeRoomId, assistantMessageId, { content: assistantContent });
+              }
+              if (data.backend) {
+                console.log('🔄 Chat: Received backend data:', data.backend);
+                backendUsed = data.backend;
+                setLastBackendUsed(data.backend);
+                console.log('🔄 Chat: Updated lastBackendUsed to:', data.backend);
+                // Update the message with backend information
+                updateMessage(activeRoomId, assistantMessageId, { backend: data.backend });
               }
               if (data.done) {
                 setIsStreaming(false);
@@ -221,7 +263,7 @@ function ChatPageContent() {
                   className={`cursor-pointer transition-colors hover:bg-muted/50 ${
                     activeRoomId === room.id ? 'bg-muted' : ''
                   }`}
-                  onClick={() => setActiveRoom(room.id)}
+                  onClick={() => handleSetActiveRoom(room.id)}
                 >
                   <CardContent className="p-3">
                     <h3 className="font-medium text-sm line-clamp-1">
@@ -284,6 +326,14 @@ function ChatPageContent() {
                           <span className="animate-pulse">▊</span>
                         )}
                       </p>
+                      {message.role === 'assistant' && message.backend && (
+                        <div className="mt-2 flex justify-end">
+                          <BackendIndicator 
+                            backend={message.backend as 'tandemn' | 'openrouter' | 'mock'} 
+                            className="text-xs"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))
@@ -292,6 +342,32 @@ function ChatPageContent() {
 
             {/* Input Area */}
             <div className="border-t p-4">
+              {/* Debug: Show current backend state (development only) */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mb-2 text-xs text-gray-500">
+                  Current backend: {lastBackendUsed} | 
+                  <span className="ml-2 text-blue-600">Debug: Check console for logs</span>
+                </div>
+              )}
+              
+              <FallbackNotification 
+                backend={lastBackendUsed} 
+                onDismiss={() => setLastBackendUsed('mock')}
+              />
+              
+              {/* Debug: Test button to trigger fallback notification (development only) */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mb-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setLastBackendUsed('openrouter')}
+                    className="text-xs"
+                  >
+                    Test Fallback Notification
+                  </Button>
+                </div>
+              )}
               {roomMessages.length === 0 && (
                 <div className="mb-4">
                   <p className="text-sm text-muted-foreground mb-2">Try these prompts:</p>
@@ -363,6 +439,13 @@ function ChatPageContent() {
               modelName={currentModel?.name}
               isVisible={showGPUUtilization}
             />
+          </div>
+        )}
+
+        {/* Tandemn Health Panel */}
+        {!showGPUUtilization && (
+          <div className="w-96 border-l bg-muted/5 p-4">
+            <TandemnHealth />
           </div>
         )}
       </div>

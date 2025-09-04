@@ -85,7 +85,7 @@ export default async function HomePage() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {featured.slice(0, 4).map((model: any) => (
+            {(featured || []).slice(0, 4).map((model: any) => (
               <FeaturedModelCard key={model.id} model={model} />
             ))}
           </div>

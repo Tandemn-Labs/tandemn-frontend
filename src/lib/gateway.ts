@@ -43,7 +43,7 @@ export class APIGateway {
   // Define 5 model instances for different models
   private readonly DEFAULT_INSTANCES: Omit<ModelInstance, 'id'>[] = [
     {
-      modelId: 'openai/gpt-4o',
+      modelId: 'deepseek/deepseek-v3-0324-0',
       endpoint: 'http://localhost:8001/v1/chat',
       status: 'healthy',
       currentLoad: 0,
@@ -55,7 +55,7 @@ export class APIGateway {
       manuallyControlled: false,
     },
     {
-      modelId: 'anthropic/claude-3.5-sonnet',
+      modelId: 'qwen/qwen3-coder-0',
       endpoint: 'http://localhost:8002/v1/chat',
       status: 'healthy',
       currentLoad: 0,
@@ -67,7 +67,7 @@ export class APIGateway {
       manuallyControlled: false,
     },
     {
-      modelId: 'google/gemini-1.5-pro',
+      modelId: 'google/gemma-3-0',
       endpoint: 'http://localhost:8003/v1/chat',
       status: 'healthy',
       currentLoad: 0,
@@ -79,7 +79,7 @@ export class APIGateway {
       manuallyControlled: false,
     },
     {
-      modelId: 'meta/llama-3.1-70b',
+      modelId: 'microsoft/phi-4-0',
       endpoint: 'http://localhost:8004/v1/chat',
       status: 'healthy',
       currentLoad: 0,
@@ -91,7 +91,7 @@ export class APIGateway {
       manuallyControlled: false,
     },
     {
-      modelId: 'groq/gemma-groq-416',
+      modelId: 'meta/llama-3-3-70b-0',
       endpoint: 'http://localhost:8005/v1/chat',
       status: 'healthy',
       currentLoad: 0,

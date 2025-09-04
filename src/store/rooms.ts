@@ -16,6 +16,7 @@ interface RoomsState {
   updateMessage: (roomId: string, messageId: string, updates: Partial<Message>) => void;
   setMessages: (roomId: string, messages: Message[]) => void;
   clearMessages: (roomId: string) => void;
+  loadMessages: (roomId: string) => Promise<void>;
 }
 
 export const useRoomsStore = create<RoomsState>()(
@@ -70,6 +71,23 @@ export const useRoomsStore = create<RoomsState>()(
           [roomId]: [],
         },
       })),
+      
+      loadMessages: async (roomId) => {
+        try {
+          const response = await fetch(`/api/chat/rooms/${roomId}/messages`);
+          if (response.ok) {
+            const data = await response.json();
+            set((state) => ({
+              messages: {
+                ...state.messages,
+                [roomId]: data.items || [],
+              },
+            }));
+          }
+        } catch (error) {
+          console.error('Failed to load messages:', error);
+        }
+      },
     }),
     {
       name: 'chat-rooms',

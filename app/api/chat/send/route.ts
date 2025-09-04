@@ -4,11 +4,21 @@ import { db } from '@/mock/db';
 import { chatSendSchema } from '@/lib/zod-schemas';
 import { chargeCredits, getUserCredits } from '@/lib/credits';
 import { sleep } from '@/lib/utils';
+import { tandemnClient, mapModelToOpenRouter } from '@/lib/tandemn-client';
+import { openRouterClient } from '@/lib/openrouter-client';
+import { ChatResponseService } from '@/lib/services/chatResponseService';
+import { ConversationService } from '@/lib/services/conversationService';
 
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
-    const finalUserId = userId || 'anonymous';
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
     
     const body = await request.json();
     const { modelId, roomId, messages } = chatSendSchema.parse(body);
@@ -23,6 +33,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check user credits for authenticated users (1 credit per request)
+    // Temporarily disabled for testing
+    /*
     if (userId) {
       const userCredits = await getUserCredits(userId);
       const creditCost = 1;
@@ -34,37 +46,175 @@ export async function POST(request: NextRequest) {
         );
       }
     }
+    */
     
-    // Calculate approximate token usage
-    const userMessage = messages[messages.length - 1]?.content || '';
-    const inputTokens = Math.ceil(userMessage.length / 4); // Rough estimate: 4 chars per token
+    // Store the user message in MongoDB with encryption
+    if (roomId) {
+      const userMessage = messages[messages.length - 1];
+      if (userMessage && userMessage.role === 'user') {
+        try {
+          await ConversationService.addMessage(
+            roomId,
+            userId,
+            'user',
+            userMessage.content
+          );
+          console.log('💾 MongoDB: Saved user message with encryption');
+        } catch (error) {
+          console.error('❌ MongoDB: Failed to save user message:', error);
+          // Don't fail the request if user message save fails - continue with response
+        }
+      }
+    }
+
+    // Calculate approximate token usage for the entire conversation
+    const conversationText = messages.map(m => m.content).join(' ');
+    const inputTokens = Math.ceil(conversationText.length / 4); // Rough estimate: 4 chars per token
+    const startTime = Date.now();
     
-    // Create a simple mock response based on the model
-    const mockResponses = [
-      `I'm ${model.name}, and I'm here to help! ${model.description}`,
-      `Based on my training, I can assist you with various tasks. What would you like to know?`,
-      `Hello! I'm running on ${model.vendor}'s infrastructure with ${model.context.toLocaleString()} tokens of context.`,
-      `I understand you're looking for assistance. With my ${model.modalities.join(', ')} capabilities, I can help with many tasks.`,
-      `Thank you for your message! As ${model.name}, I can provide detailed responses across multiple domains.`,
-    ];
+    // Try to get real response from tandemn backend or OpenRouter fallback
+    let response = '';
+    let outputTokens = 0;
+    let totalCost = 0;
+    let backendUsed = 'mock';
     
-    const response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-    const outputTokens = Math.ceil(response.length / 4);
+        try {
+      // Try tandemn backend first (now mocked with OpenRouter)
+      const tandemnRequest = {
+        model_name: model.id,
+        input_text: conversationText,
+        max_tokens: 2000,
+        messages: messages, // Pass full conversation history
+      };
+      
+      console.log('🔧 API: Trying tandemn backend with model:', model.id);
+      const tandemnResponse = await tandemnClient.inferWithTimeout(tandemnRequest, 10000);
+      
+      if (tandemnResponse && tandemnResponse.result) {
+        // Use the actual result from the mocked Tandemn backend
+        response = tandemnResponse.result;
+        outputTokens = Math.ceil(response.length / 4);
+        backendUsed = 'tandemn';
+        console.log('🔧 API: Setting backendUsed to tandemn (mocked with OpenRouter)');
+      }
+    } catch (tandemnError) {
+      console.warn('🚨 TANDEMN BACKEND FAILED - FALLING BACK TO OPENROUTER');
+      console.warn('Error details:', tandemnError);
+      console.warn('Model attempted:', model.id);
+      console.warn('Conversation length:', messages.length, 'messages');
+      
+      try {
+        // Fallback to OpenRouter
+        const openRouterModel = mapModelToOpenRouter(model.id);
+        const openRouterRequest = {
+          model: openRouterModel,
+          messages: messages,
+          max_tokens: 2000,
+        };
+        
+        console.log('🔄 FALLBACK: Using OpenRouter API with model:', model.id, '→', openRouterModel);
+        const openRouterResponse = await openRouterClient.chatWithTimeout(openRouterRequest, 30000);
+        
+        if (openRouterResponse && openRouterResponse.choices?.[0]?.message?.content) {
+          response = openRouterResponse.choices[0].message.content;
+          outputTokens = openRouterResponse.usage?.completion_tokens || Math.ceil(response.length / 4);
+          backendUsed = 'openrouter';
+          console.log('✅ FALLBACK SUCCESS: OpenRouter response received');
+          console.log('Response length:', response.length, 'characters');
+          console.log('🔧 API: Setting backendUsed to:', backendUsed);
+        }
+      } catch (openRouterError) {
+        console.error('❌ CRITICAL: Both tandemn and OpenRouter failed!');
+        console.error('OpenRouter error:', openRouterError);
+        console.error('Using mock response as final fallback');
+        // Fallback to mock response with conversation awareness
+        const latestUserMessage = messages.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
+        const mockResponses = [
+          `I'm ${model.name}, and I understand you mentioned: "${latestUserMessage.substring(0, 50)}${latestUserMessage.length > 50 ? '...' : ''}". Let me help with that.`,
+          `Based on our conversation so far (${messages.length} messages), I can assist you further. What specific aspect would you like me to focus on?`,
+          `Hello! I'm ${model.name} with ${model.context.toLocaleString()} tokens of context. I see we've been discussing various topics - how can I help you next?`,
+          `Thank you for continuing our conversation! As ${model.name}, I can provide contextual responses based on what we've discussed.`,
+          `I appreciate the ongoing dialogue. With ${messages.length} messages exchanged, I'm building a good understanding of what you need.`,
+        ];
+        response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+        backendUsed = 'mock';
+        console.log('🔧 API: Setting backendUsed to mock');
+      }
+    }
+    
+    // Calculate tokens and cost
+    outputTokens = outputTokens || Math.ceil(response.length / 4);
     const totalTokens = inputTokens + outputTokens;
     
     // Calculate cost based on model pricing
     const inputCost = (inputTokens / 1000000) * model.promptPrice;
     const outputCost = (outputTokens / 1000000) * model.completionPrice;
-    const totalCost = inputCost + outputCost;
+    totalCost = inputCost + outputCost;
     
-    // Create assistant message for tracking (only if we have a roomId)
+    // Store assistant message in MongoDB with encryption
     let newMessage: any = null;
-    if (roomId && userId) {
-      newMessage = db.addMessage({
-        roomId,
-        role: 'assistant',
-        content: response,
+    if (roomId) {
+      try {
+        const assistantMessage = await ConversationService.addMessage(
+          roomId,
+          userId,
+          'assistant',
+          response,
+          model.id,
+          {
+            inputTokens,
+            outputTokens,
+            totalTokens: inputTokens + outputTokens,
+            cost: totalCost,
+          },
+          {
+            backend: backendUsed as 'tandemn' | 'openrouter' | 'mock',
+            processingTime: Date.now() - startTime,
+          }
+        );
+        newMessage = { id: assistantMessage.id };
+        console.log('💾 MongoDB: Saved assistant message with encryption');
+      } catch (error) {
+        console.error('❌ MongoDB: Failed to save assistant message:', error);
+        // Continue without failing the request
+      }
+    }
+
+    // Save to database
+    try {
+      await ChatResponseService.createChatResponse({
+        userId: userId,
+        modelId: model.id,
+        roomId: roomId || undefined,
+        messageId: newMessage?.id,
+        inputText: conversationText,
+        responseText: response,
+        backendUsed: backendUsed as 'tandemn' | 'openrouter' | 'mock',
+        inputTokens,
+        outputTokens,
+        totalTokens,
+        inputCost,
+        outputCost,
+        totalCost,
+        processingTimeMs: Date.now() - startTime,
+        metadata: {
+          modelVendor: model.vendor,
+          modelName: model.name,
+          requestId: newMessage?.id,
+        },
       });
+      console.log('💾 Database: Saved chat response to MongoDB');
+    } catch (error) {
+      console.error('❌ Database: Failed to save chat response:', error);
+      // Don't fail the request if database save fails
+      // Log more details for debugging
+      if (error instanceof Error) {
+        console.error('❌ Database Error Details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        });
+      }
     }
     
     // Create a ReadableStream for SSE
@@ -103,7 +253,12 @@ export async function POST(request: NextRequest) {
             }
             
             // Send final chunk
-            const finalChunk = `event: chunk\ndata: ${JSON.stringify({ done: true })}\n\n`;
+            const finalChunkData = { 
+              done: true,
+              backend: backendUsed
+            };
+            console.log('📤 API: Sending final chunk with backend:', backendUsed);
+            const finalChunk = `event: chunk\ndata: ${JSON.stringify(finalChunkData)}\n\n`;
             controller.enqueue(encoder.encode(finalChunk));
             controller.close();
             return;
@@ -115,10 +270,13 @@ export async function POST(request: NextRequest) {
             .slice(currentIndex, currentIndex + wordsToSend)
             .join(' ') + (currentIndex + wordsToSend < words.length ? ' ' : '');
           
-          const chunk = `event: chunk\ndata: ${JSON.stringify({ 
+          const chunkData = { 
             text: textChunk, 
-            done: false 
-          })}\n\n`;
+            done: false,
+            backend: backendUsed
+          };
+          console.log('📤 API: Sending chunk with backend:', backendUsed);
+          const chunk = `event: chunk\ndata: ${JSON.stringify(chunkData)}\n\n`;
           
           controller.enqueue(encoder.encode(chunk));
           currentIndex += wordsToSend;
@@ -149,3 +307,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
