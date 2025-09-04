@@ -1,228 +1,453 @@
-# API Documentation
+# Tandemn API Documentation
 
 ## Overview
 
-Our API provides programmatic access to AI models with a simple credit-based pricing system:
-- **Standard API calls**: 1 credit per request
-- **Batch requests**: 2 credits per request (add `?batch=1` to URL)
+Tandemn provides a unified API for accessing 5 core AI models with token-based pricing. Users are charged per million tokens consumed, with separate pricing for input and output tokens.
 
 ## Authentication
 
-All API requests require an API key. Generate your API key from the dashboard at `/keys`.
+All API calls require authentication using an API key in the Authorization header:
 
 ```bash
 Authorization: Bearer YOUR_API_KEY
 ```
 
-## Generate API Key
+## Base URL
 
-### Via Dashboard
-1. Sign in to your account
-2. Navigate to `/keys`
-3. Click "Generate Key" and provide a name
-4. Copy the generated key (it won't be shown again)
+```
+https://api.tandemn.com/v1
+```
 
-### Via cURL (authenticated users only)
+## Core Models
+
+| Model | Provider | Input Price/1M | Output Price/1M | Context Length |
+|-------|----------|----------------|-----------------|----------------|
+| `claude-3-5-sonnet` | Anthropic | $3.00 | $15.00 | 200,000 |
+| `gpt-4o` | OpenAI | $2.50 | $10.00 | 128,000 |
+| `gemini-1.5-pro` | Google | $1.25 | $5.00 | 2,097,152 |
+| `llama-3.1-405b` | Meta | $2.70 | $2.70 | 32,768 |
+| `mixtral-8x22b` | Mistral AI | $0.90 | $0.90 | 65,536 |
+
+---
+
+## Endpoints
+
+### 1. Chat Completions
+
+**Endpoint:** `POST /v1/chat/complete`
+
+Generate text completions using AI models.
+
+#### Request
+
 ```bash
-curl -X POST https://yourdomain.com/api/keys \
-  -H "Cookie: your-session-cookie" \
-  -H "Content-Type: application/json" \
-  -d '{"name": "My API Key"}'
-```
-
-## Chat Completion API
-
-### Endpoint
-```
-POST /api/v1/chat
-```
-
-### Standard Request (1 credit)
-```bash
-curl -X POST https://yourdomain.com/api/v1/chat \
+curl -X POST https://api.tandemn.com/v1/chat/complete \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "groq/gemma-groq-416",
+    "model": "claude-3-5-sonnet",
     "messages": [
-      {"role": "user", "content": "Hello, world!"}
+      {"role": "user", "content": "Hello, how are you?"}
     ],
-    "max_tokens": 150
+    "max_tokens": 1024,
+    "temperature": 1
   }'
 ```
 
-### Batch Request (2 credits)
-```bash
-curl -X POST https://yourdomain.com/api/v1/chat?batch=1 \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "groq/gemma-groq-416",
-    "messages": [
-      {"role": "user", "content": "Process this batch request"}
-    ],
-    "max_tokens": 150
-  }'
-```
+#### Request Body
 
-## Request Parameters
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `model` | string | Yes | Model ID from the supported models list |
+| `messages` | array | Yes | Array of message objects with `role` and `content` |
+| `max_tokens` | integer | No | Maximum tokens to generate (default: 1024) |
+| `temperature` | float | No | Sampling temperature 0-2 (default: 1) |
+| `stream` | boolean | No | Stream response (not supported in mock) |
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `model` | string | Yes | Model ID (e.g., "groq/gemma-groq-416") |
-| `messages` | array | Yes | Array of message objects |
-| `max_tokens` | integer | No | Maximum tokens to generate (default: 150) |
-| `batch` | query param | No | Set to "1" for batch processing (2 credits) |
+#### Response
 
-## Response Format
-
-### Success Response
 ```json
 {
-  "id": "chatcmpl-1234567890",
+  "id": "chatcmpl-1699473200123",
   "object": "chat.completion",
-  "created": 1699999999,
-  "model": "groq/gemma-groq-416",
+  "created": 1699473200,
+  "model": "claude-3-5-sonnet",
   "choices": [
     {
       "index": 0,
       "message": {
         "role": "assistant",
-        "content": "Hello! How can I help you today?"
+        "content": "Hello! I'm Claude 3.5 Sonnet by Anthropic..."
       },
       "finish_reason": "stop"
     }
   ],
   "usage": {
-    "prompt_tokens": 10,
-    "completion_tokens": 20,
-    "total_tokens": 30
+    "prompt_tokens": 12,
+    "completion_tokens": 45,
+    "total_tokens": 57
   },
-  "credits_charged": 1,
-  "credits_remaining": 99,
-  "batch_request": false
+  "billing": {
+    "credits_charged": 0.0084,
+    "credits_remaining": 24.9916,
+    "input_cost": 0.0001,
+    "output_cost": 0.0068,
+    "pricing": {
+      "input_price_per_1m_tokens": 3.00,
+      "output_price_per_1m_tokens": 15.00
+    }
+  },
+  "model_info": {
+    "provider": "Anthropic",
+    "context_length": 200000,
+    "capabilities": ["text", "reasoning", "analysis", "coding"],
+    "max_tokens": 8192
+  }
 }
 ```
 
-### Error Responses
+#### Error Responses
 
-#### Invalid API Key (401)
+**401 Unauthorized:**
 ```json
 {
   "error": "Invalid API key"
 }
 ```
 
-#### Insufficient Credits (402)
+**402 Payment Required:**
 ```json
 {
-  "error": "Insufficient credits. Required: 1, Available: 0",
-  "credits_required": 1,
-  "credits_available": 0
+  "error": "Insufficient credits. Required: $0.0084, Available: $0.0050",
+  "required_credits": 0.0084,
+  "available_credits": 0.0050,
+  "token_breakdown": {
+    "input_tokens": 12,
+    "output_tokens": 45,
+    "input_price_per_1m": 3.00,
+    "output_price_per_1m": 15.00,
+    "total_cost": 0.0084
+  }
 }
 ```
 
-#### Model Not Found (404)
-```json
-{
-  "error": "Model 'invalid-model' not found"
-}
-```
+---
 
-#### Invalid Request (400)
-```json
-{
-  "error": "Missing required fields: model and messages array"
-}
-```
+### 2. List Models
 
-## Available Models
+**Endpoint:** `GET /v1/models`
 
-Get the list of available models:
+Get all available models and their capabilities.
+
+#### Request
 
 ```bash
-curl -X GET https://yourdomain.com/api/models
+curl https://api.tandemn.com/v1/models \
+  -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-Popular models include:
-- `groq/gemma-groq-416` - Fast and efficient
-- `mistral/mistral-large-135` - Large context window
-- `openai/gpt-4` - High quality responses
-- `anthropic/claude-3-sonnet` - Balanced performance
+#### Response
 
-## Credit Management
+```json
+{
+  "data": [
+    {
+      "id": "claude-3-5-sonnet",
+      "name": "Claude 3.5 Sonnet",
+      "provider": "Anthropic",
+      "description": "Most intelligent model with excellent reasoning, writing, and analysis capabilities",
+      "context_length": 200000,
+      "input_price_per_1m": 3.00,
+      "output_price_per_1m": 15.00,
+      "capabilities": ["text", "reasoning", "analysis", "coding"],
+      "max_tokens": 8192,
+      "is_available": true
+    }
+  ],
+  "total": 5
+}
+```
 
-### Check Credit Balance
-Your credit balance and remaining credits are included in each API response.
+---
 
-### Purchase Credits
-Visit the dashboard to purchase additional credits. Credits are priced at $1 = 1 credit.
+### 3. Get Pricing
 
-### Credit Packages
-- $5 = 5 credits
-- $10 = 10 credits  
-- $25 = 25 credits + 2.5 bonus (10% bonus)
-- $50 = 50 credits + 7.5 bonus (15% bonus)
-- $100 = 100 credits + 20 bonus (20% bonus)
+**Endpoint:** `GET /v1/pricing`
+
+Get pricing information for models.
+
+#### Request
+
+```bash
+# Get all model pricing
+curl https://api.tandemn.com/v1/pricing \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Get specific model pricing
+curl https://api.tandemn.com/v1/pricing?model=claude-3-5-sonnet \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+#### Response
+
+```json
+{
+  "data": [
+    {
+      "id": "claude-3-5-sonnet",
+      "name": "Claude 3.5 Sonnet",
+      "provider": "Anthropic",
+      "input_price_per_1m": 3.00,
+      "output_price_per_1m": 15.00,
+      "context_length": 200000
+    }
+  ],
+  "total": 5
+}
+```
+
+---
+
+### 4. Calculate Pricing
+
+**Endpoint:** `POST /v1/pricing/calculate`
+
+Calculate cost for specific token usage.
+
+#### Request
+
+```bash
+curl -X POST https://api.tandemn.com/v1/pricing/calculate \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_id": "claude-3-5-sonnet",
+    "input_tokens": 1000,
+    "output_tokens": 500
+  }'
+```
+
+#### Response
+
+```json
+{
+  "data": {
+    "model_id": "claude-3-5-sonnet",
+    "input_tokens": 1000,
+    "output_tokens": 500,
+    "total_tokens": 1500,
+    "input_cost": 0.0030,
+    "output_cost": 0.0075,
+    "total_cost": 0.0105,
+    "pricing": {
+      "input_price_per_1m": 3.00,
+      "output_price_per_1m": 15.00
+    }
+  }
+}
+```
+
+---
+
+### 5. Check Balance
+
+**Endpoint:** `GET /v1/balance`
+
+Get current credit balance and usage statistics.
+
+#### Request
+
+```bash
+curl https://api.tandemn.com/v1/balance \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+#### Response
+
+```json
+{
+  "data": {
+    "balance": 24.9916,
+    "currency": "USD",
+    "monthly_usage": {
+      "spent": 5.2341,
+      "api_calls": 47,
+      "period": "2024-01-01 to 2024-01-15"
+    },
+    "recent_transactions": [
+      {
+        "id": "txn_1699473200_abc123",
+        "type": "usage_charge",
+        "amount": -0.0084,
+        "description": "Claude 3.5 Sonnet - 57 tokens",
+        "created_at": "2024-01-15T10:30:00Z",
+        "metadata": {
+          "model": "claude-3-5-sonnet",
+          "input_tokens": 12,
+          "output_tokens": 45,
+          "total_tokens": 57
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Real Backend Implementation Requirements
+
+### 1. **Database Schema**
+
+You'll need these core tables:
+
+#### Users Table
+```sql
+CREATE TABLE users (
+  id VARCHAR(255) PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  name VARCHAR(255),
+  balance DECIMAL(10,4) DEFAULT 0.0000,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+#### API Keys Table
+```sql
+CREATE TABLE api_keys (
+  id VARCHAR(255) PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  key_hash VARCHAR(255) UNIQUE NOT NULL,  -- Store hash, not raw key
+  is_active BOOLEAN DEFAULT true,
+  last_used TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+```
+
+#### Transactions Table
+```sql
+CREATE TABLE transactions (
+  id VARCHAR(255) PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL,
+  type ENUM('credit_purchase', 'usage_charge', 'bonus_credit') NOT NULL,
+  amount DECIMAL(10,4) NOT NULL,
+  description TEXT,
+  model_id VARCHAR(50),
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  total_tokens INTEGER,
+  metadata JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+```
+
+### 2. **Environment Variables**
+
+```env
+# Database
+DATABASE_URL=postgresql://user:pass@host:port/dbname
+
+# OpenAI Integration (for actual AI responses)
+OPENAI_API_KEY=sk-your-openai-key
+
+# Anthropic Integration
+ANTHROPIC_API_KEY=sk-ant-your-key
+
+# Google Integration
+GOOGLE_AI_API_KEY=your-google-key
+
+# Meta/Llama Integration (via Together AI, Replicate, etc.)
+TOGETHER_API_KEY=your-together-key
+
+# Mistral AI Integration
+MISTRAL_API_KEY=your-mistral-key
+
+# JWT Secret for API keys
+JWT_SECRET=your-jwt-secret
+
+# Rate Limiting
+REDIS_URL=redis://localhost:6379
+```
+
+### 3. **Core Implementation Files**
+
+#### Model Configuration (`/config/models.js`)
+```javascript
+export const MODELS = {
+  'claude-3-5-sonnet': {
+    provider: 'anthropic',
+    endpoint: 'https://api.anthropic.com/v1/messages',
+    inputPrice: 3.00,
+    outputPrice: 15.00,
+    contextLength: 200000
+  },
+  // ... other models
+};
+```
+
+#### Rate Limiting Middleware (`/middleware/rateLimit.js`)
+```javascript
+// Implement rate limiting per API key
+// Suggested: 100 requests/minute per key
+```
+
+#### Authentication Middleware (`/middleware/auth.js`)
+```javascript
+// Validate API keys against database
+// Update last_used timestamp
+```
+
+#### Balance Management (`/services/billing.js`)
+```javascript
+// Check balance before processing
+// Deduct credits after successful completion
+// Handle concurrent request edge cases with database transactions
+```
+
+### 4. **AI Provider Integration**
+
+You'll need to implement actual API calls to:
+
+1. **Anthropic Claude API** - for Claude models
+2. **OpenAI API** - for GPT-4o
+3. **Google Gemini API** - for Gemini models
+4. **Together AI or Replicate** - for Llama models
+5. **Mistral AI API** - for Mixtral models
+
+### 5. **Production Considerations**
+
+- **Rate Limiting**: Implement per-key rate limiting
+- **Monitoring**: Track usage, errors, and performance
+- **Logging**: Comprehensive request/response logging
+- **Caching**: Cache model responses where appropriate
+- **Security**: Input validation, SQL injection protection
+- **Scaling**: Queue system for high-throughput scenarios
+- **Billing**: Automated credit purchases, payment webhooks
+
+---
+
+## Error Codes
+
+| Code | Description |
+|------|-------------|
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Invalid API key |
+| 402 | Payment Required - Insufficient credits |
+| 404 | Not Found - Model not found |
+| 429 | Too Many Requests - Rate limit exceeded |
+| 500 | Internal Server Error |
+
+---
 
 ## Rate Limits
 
-- 60 requests per minute per IP address
-- No concurrent request limits per API key
+- **100 requests per minute** per API key
+- **1000 requests per day** for free tier
+- **Unlimited** for paid tiers
 
 ## Support
 
-For API support, visit the dashboard or contact support through the web interface.
-
-## SDKs and Libraries
-
-### Python Example
-```python
-import requests
-
-headers = {
-    'Authorization': 'Bearer YOUR_API_KEY',
-    'Content-Type': 'application/json'
-}
-
-data = {
-    'model': 'groq/gemma-groq-416',
-    'messages': [
-        {'role': 'user', 'content': 'Hello!'}
-    ]
-}
-
-response = requests.post('https://yourdomain.com/api/v1/chat', 
-                        headers=headers, json=data)
-print(response.json())
-```
-
-### JavaScript/Node.js Example
-```javascript
-const response = await fetch('https://yourdomain.com/api/v1/chat', {
-  method: 'POST',
-  headers: {
-    'Authorization': 'Bearer YOUR_API_KEY',
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    model: 'groq/gemma-groq-416',
-    messages: [
-      { role: 'user', content: 'Hello!' }
-    ]
-  })
-});
-
-const data = await response.json();
-console.log(data);
-```
-
-## Status Codes
-
-- `200` - Success
-- `400` - Bad Request (invalid parameters)
-- `401` - Unauthorized (invalid API key)
-- `402` - Payment Required (insufficient credits)
-- `404` - Not Found (invalid model)
-- `429` - Too Many Requests (rate limited)
-- `500` - Internal Server Error
+For API support, contact: api-support@tandemn.com

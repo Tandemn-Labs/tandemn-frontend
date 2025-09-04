@@ -5,7 +5,7 @@ import { useUser } from '@clerk/nextjs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CreditCard, Plus, Zap, DollarSign } from 'lucide-react';
+import { CreditCard, Plus, Zap } from 'lucide-react';
 import { CREDIT_PACKAGES } from '@/lib/credits-client';
 
 export default function CreditsPage() {
@@ -168,41 +168,6 @@ export default function CreditsPage() {
         </CardContent>
       </Card>
 
-      {/* Usage Info */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>How It Works</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="font-semibold mb-2 flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Simple Pricing
-              </h3>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Token-based pricing</li>
-                <li>• ~10 input tokens = $1</li>
-                <li>• ~5 output tokens = $1</li>
-                <li>• Batch requests = 2x tokens</li>
-                <li>• No hidden fees</li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold mb-2 flex items-center gap-2">
-                <Zap className="h-4 w-4" />
-                Usage Examples
-              </h3>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Short chat: ~$0.10-0.50</li>
-                <li>• Long analysis: ~$0.50-2.00</li>
-                <li>• Batch requests: 2x cost</li>
-                <li>• Credits never expire</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

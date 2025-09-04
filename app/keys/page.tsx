@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -129,12 +130,12 @@ export default function APIKeysPage() {
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
           <p className="mb-4">Please sign in to manage API keys.</p>
-          <a 
+          <Link 
             href="/sign-in" 
             className="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
           >
             Sign In
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -182,16 +183,16 @@ export default function APIKeysPage() {
 
       {/* Show newly generated key */}
       {showNewKey && (
-        <Card className="mb-6 border-green-200 bg-green-50">
+        <Card className="mb-6 border-green-400/30 bg-green-400/10 glass-card">
           <CardHeader>
-            <CardTitle className="text-green-800">API Key Generated!</CardTitle>
-            <CardDescription className="text-green-700">
-              Copy this key now - it won't be shown again for security reasons.
+            <CardTitle className="text-green-400">API Key Generated!</CardTitle>
+            <CardDescription className="text-green-300/80">
+              Copy this key now - it won&apos;t be shown again for security reasons.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2 p-3 bg-white rounded border">
-              <code className="flex-1 font-mono text-sm break-all">{showNewKey}</code>
+            <div className="flex items-center gap-2 p-3 bg-background/80 rounded border border-border">
+              <code className="flex-1 font-mono text-sm break-all text-foreground">{showNewKey}</code>
               <Button 
                 size="sm" 
                 variant="outline"
@@ -205,7 +206,7 @@ export default function APIKeysPage() {
               variant="outline" 
               onClick={() => setShowNewKey(null)}
             >
-              I've copied the key
+              I&apos;ve copied the key
             </Button>
           </CardContent>
         </Card>
@@ -219,7 +220,7 @@ export default function APIKeysPage() {
         <CardContent className="space-y-4">
           <div>
             <h4 className="font-semibold mb-2">Standard API Call (~$0.10-0.50):</h4>
-            <pre className="bg-gray-100 p-3 rounded text-sm overflow-x-auto">
+            <pre className="bg-muted/50 p-3 rounded text-sm overflow-x-auto border border-border text-foreground">
 {`curl -X POST https://yourdomain.com/api/v1/chat \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -231,7 +232,7 @@ export default function APIKeysPage() {
           </div>
           <div>
             <h4 className="font-semibold mb-2">Batch Request (2x tokens):</h4>
-            <pre className="bg-gray-100 p-3 rounded text-sm overflow-x-auto">
+            <pre className="bg-muted/50 p-3 rounded text-sm overflow-x-auto border border-border text-foreground">
 {`curl -X POST https://yourdomain.com/api/v1/chat?batch=1 \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -274,7 +275,7 @@ export default function APIKeysPage() {
                     <div className="text-sm text-muted-foreground space-y-1">
                       <div className="flex items-center gap-2">
                         <span>Key:</span>
-                        <code className="text-xs bg-gray-100 px-2 py-1 rounded font-mono flex-1">
+                        <code className="text-xs bg-muted/50 px-2 py-1 rounded font-mono flex-1 text-foreground border border-border">
                           {visibleKeys[key.id] ? key.key : maskApiKey(key.key)}
                         </code>
                         <Button

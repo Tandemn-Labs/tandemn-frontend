@@ -8,8 +8,11 @@ import '@/globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'OpenRouter Clone',
-  description: 'The unified interface for LLMs',
+  title: 'Tandemn - The unified interface for LLMs',
+  description: 'Access the world\'s best AI models through a single API with Tandemn',
+  icons: {
+    icon: '/favicon.png',
+  },
 };
 
 export default function RootLayout({

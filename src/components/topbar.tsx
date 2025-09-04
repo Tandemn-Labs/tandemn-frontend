@@ -4,18 +4,9 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useUser, SignInButton, UserButton } from '@clerk/nextjs';
-import { Search, Code, User, LogOut, Settings, CreditCard } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 interface TopbarProps {
   onSearchFocus?: () => void;
@@ -23,50 +14,51 @@ interface TopbarProps {
 
 export function Topbar({ onSearchFocus }: TopbarProps) {
   const pathname = usePathname();
-  const { user, isSignedIn } = useUser();
+  const { isSignedIn } = useUser();
 
   const navItems = [
-    { href: '/models', label: 'Models' },
     { href: '/chat', label: 'Chat' },
+<<<<<<< Updated upstream
     { href: '/rankings', label: 'Rankings' },
     { href: '/metrics', label: 'Metrics' },
+=======
+>>>>>>> Stashed changes
     { href: '/keys', label: 'API Keys' },
     { href: '/credits', label: 'Credits' },
-    { href: '/settings', label: 'Settings' },
-    { href: '/loadtest', label: 'Load Test' }
+    { href: '/settings', label: 'Settings' }
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-border/50 glass-card">
       <div className="container flex h-14 items-center">
         {/* Logo */}
-        <Link href="/" className="mr-6 flex items-center space-x-2">
-          <Code className="h-6 w-6" />
-          <span className="font-bold">OpenRouter</span>
+        <Link href="/" className="mr-8 flex items-center space-x-3 group">
+          <img src="/tandemn-logo-circle.svg" alt="Tandemn" className="h-8 w-8 gentle-float" />
+          <span className="font-bold text-lg gradient-text">Tandemn</span>
         </Link>
 
         {/* Search */}
         <div className="flex flex-1 items-center space-x-2">
           <div className="relative w-full max-w-sm">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search models... (⌘/)"
-              className="pl-8"
+              placeholder="Search models..."
+              className="pl-9 h-9 bg-background/80 border-border"
               onFocus={onSearchFocus}
             />
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex items-center space-x-6 ml-6">
+        <nav className="flex items-center space-x-1 ml-6">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`text-sm font-medium transition-colors hover:text-primary ${
+              className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                 pathname === item.href
-                  ? 'text-foreground'
-                  : 'text-muted-foreground'
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/5'
               }`}
             >
               {item.label}
@@ -80,13 +72,15 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
             <UserButton 
               appearance={{
                 elements: {
-                  avatarBox: "h-8 w-8"
+                  avatarBox: "h-8 w-8 rounded-full"
                 }
               }}
             />
           ) : (
             <SignInButton mode="modal">
-              <Button>Sign In</Button>
+              <Button className="modern-button">
+                Sign In
+              </Button>
             </SignInButton>
           )}
         </div>
