@@ -185,24 +185,24 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <SettingsIcon className="h-8 w-8" />
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <SettingsIcon className="h-6 w-6 md:h-8 md:w-8" />
             Settings
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-sm md:text-base text-muted-foreground mt-2">
             Manage your account settings and view raw system events
           </p>
         </div>
       </div>
 
-      <Tabs defaultValue="events" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="events">Raw Events</TabsTrigger>
-          <TabsTrigger value="account">Account</TabsTrigger>
-          <TabsTrigger value="preferences">Preferences</TabsTrigger>
+      <Tabs defaultValue="events" className="space-y-4 md:space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="events" className="text-xs md:text-sm">Raw Events</TabsTrigger>
+          <TabsTrigger value="account" className="text-xs md:text-sm">Account</TabsTrigger>
+          <TabsTrigger value="preferences" className="text-xs md:text-sm">Preferences</TabsTrigger>
         </TabsList>
 
         <TabsContent value="events" className="space-y-6">
@@ -218,22 +218,22 @@ export default function SettingsPage() {
                     Real-time system events and user activity logs
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setAutoRefresh(!autoRefresh)}
-                    className={autoRefresh ? "bg-green-50 text-green-700" : ""}
+                    className={`${autoRefresh ? "bg-green-50 text-green-700" : ""} text-xs md:text-sm`}
                   >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
                     Auto Refresh
                   </Button>
-                  <Button variant="outline" size="sm" onClick={exportEvents}>
-                    <Download className="h-4 w-4 mr-2" />
+                  <Button variant="outline" size="sm" onClick={exportEvents} className="text-xs md:text-sm">
+                    <Download className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                     Export CSV
                   </Button>
-                  <Button variant="outline" size="sm" onClick={clearEvents}>
-                    <Trash2 className="h-4 w-4 mr-2" />
+                  <Button variant="outline" size="sm" onClick={clearEvents} className="text-xs md:text-sm">
+                    <Trash2 className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                     Clear
                   </Button>
                 </div>
@@ -316,7 +316,7 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Name</label>
                   <p className="text-sm text-muted-foreground">{user?.fullName || user?.firstName || 'Demo User'}</p>

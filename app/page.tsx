@@ -34,14 +34,14 @@ export default async function HomePage() {
       {/* Subtle Background Pattern */}
       <div className="absolute inset-0 dot-pattern opacity-50"></div>
       
-      <div className="container mx-auto px-4 py-12 max-w-7xl relative z-10">
+      <div className="container mx-auto px-4 py-6 md:py-12 max-w-7xl relative z-10">
         {/* Hero Section */}
-        <div className="text-center mb-20">
+        <div className="text-center mb-12 md:mb-20">
           {/* Logo and Title */}
-          <div className="flex items-center justify-center space-x-4 mb-8">
+          <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4 mb-6 md:mb-8">
             <img src="/tandemn-logo-circle.svg" alt="Tandemn" className="h-16 w-16 md:h-20 md:w-20 gentle-float" />
             <div>
-              <h1 className="text-5xl md:text-7xl font-bold gradient-text mb-2">
+              <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold gradient-text mb-2">
                 Tandemn
               </h1>
               <div className="text-sm md:text-base text-muted-foreground">
@@ -51,19 +51,19 @@ export default async function HomePage() {
           </div>
           
           {/* Subtitle */}
-          <div className="mb-12 max-w-4xl mx-auto">
-            <p className="text-xl md:text-2xl text-muted-foreground mb-6 font-light">
+          <div className="mb-8 md:mb-12 max-w-4xl mx-auto">
+            <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-4 md:mb-6 font-light">
               The missing layer between <span className="gradient-text font-semibold">underutilized accelerators</span> 
               and massive models
             </p>
-            <div className="text-base text-accent/70">
+            <div className="text-sm md:text-base text-accent/70">
               Zero-friction scheduling • KV-block teleportation • Ultra-light messaging
             </div>
           </div>
           
           {/* Modern Search Interface */}
-          <div className="max-w-2xl mx-auto mb-12">
-            <div className="glass-card p-6 subtle-glow">
+          <div className="max-w-2xl mx-auto mb-8 md:mb-12">
+            <div className="glass-card p-4 md:p-6 subtle-glow">
               <form 
                 action="/chat" 
                 method="GET"
@@ -83,7 +83,7 @@ export default async function HomePage() {
                   </Button>
                 </div>
                 
-                <div className="flex items-center justify-center space-x-6 text-sm text-muted-foreground">
+                <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-6 text-xs sm:text-sm text-muted-foreground">
                   <div className="flex items-center space-x-2">
                     <div className="status-dot bg-green-400"></div>
                     <span>NVIDIA • AMD • Intel</span>
@@ -117,16 +117,16 @@ export default async function HomePage() {
         </div>
 
         {/* Infrastructure Features Section */}
-        <div className="mb-20">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold gradient-text mb-4">Distributed AI Infrastructure</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+        <div className="mb-12 md:mb-20">
+          <div className="text-center mb-8 md:mb-12">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold gradient-text mb-4">Distributed AI Infrastructure</h2>
+            <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto">
               Making top-tier AI effortless across NVIDIA, AMD, Intel, and custom silicon
             </p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="glass-card p-6 hover:subtle-glow transition-all duration-300 group">
+            <div className="glass-card p-4 md:p-6 hover:subtle-glow transition-all duration-300 group">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-semibold text-foreground group-hover:text-accent transition-colors">
@@ -155,7 +155,7 @@ export default async function HomePage() {
               </div>
             </div>
 
-            <div className="glass-card p-6 hover:subtle-glow transition-all duration-300 group">
+            <div className="glass-card p-4 md:p-6 hover:subtle-glow transition-all duration-300 group">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-semibold text-foreground group-hover:text-accent transition-colors">
@@ -184,7 +184,7 @@ export default async function HomePage() {
               </div>
             </div>
 
-            <div className="glass-card p-6 hover:subtle-glow transition-all duration-300 group">
+            <div className="glass-card p-4 md:p-6 hover:subtle-glow transition-all duration-300 group">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h3 className="text-lg font-semibold text-foreground group-hover:text-accent transition-colors">
@@ -227,16 +227,16 @@ export default async function HomePage() {
         </div>
 
         {/* Features Grid */}
-        <div className="mb-20">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold gradient-text mb-4">Platform Features</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+        <div className="mb-12 md:mb-20">
+          <div className="text-center mb-8 md:mb-12">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold gradient-text mb-4">Platform Features</h2>
+            <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto">
               Everything you need to build, deploy, and scale AI applications
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="glass-card p-6 text-center group hover:subtle-glow transition-all duration-300">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            <div className="glass-card p-4 md:p-6 text-center group hover:subtle-glow transition-all duration-300">
               <div className="w-12 h-12 bg-accent/20 rounded-lg flex items-center justify-center mx-auto mb-4 group-hover:bg-accent/30 transition-colors">
                 <div className="w-6 h-6 border-2 border-accent rounded"></div>
               </div>
@@ -279,41 +279,41 @@ export default async function HomePage() {
         </div>
 
         {/* Statistics Dashboard */}
-        <div className="mb-20">
-          <div className="glass-card p-8">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold gradient-text mb-2">Platform Statistics</h2>
-              <p className="text-muted-foreground">Real-time metrics from our global network</p>
+        <div className="mb-12 md:mb-20">
+          <div className="glass-card p-4 md:p-8">
+            <div className="text-center mb-6 md:mb-8">
+              <h2 className="text-xl md:text-2xl font-bold gradient-text mb-2">Platform Statistics</h2>
+              <p className="text-sm md:text-base text-muted-foreground">Real-time metrics from our global network</p>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
               <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold gradient-text mb-2">{kpis.monthlyTokens}</div>
-                <div className="text-sm text-muted-foreground">Tokens Processed</div>
+                <div className="text-2xl md:text-3xl lg:text-4xl font-bold gradient-text mb-2">{kpis.monthlyTokens}</div>
+                <div className="text-xs md:text-sm text-muted-foreground">Tokens Processed</div>
                 <div className="w-full h-1 bg-accent/20 rounded-full mt-2">
                   <div className="w-4/5 h-1 bg-accent rounded-full"></div>
                 </div>
               </div>
               
               <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-primary mb-2">{kpis.users}</div>
-                <div className="text-sm text-muted-foreground">Active Users</div>
+                <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-primary mb-2">{kpis.users}</div>
+                <div className="text-xs md:text-sm text-muted-foreground">Active Users</div>
                 <div className="w-full h-1 bg-primary/20 rounded-full mt-2">
                   <div className="w-3/5 h-1 bg-primary rounded-full"></div>
                 </div>
               </div>
               
               <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-green-400 mb-2">{kpis.providers}</div>
-                <div className="text-sm text-muted-foreground">AI Providers</div>
+                <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-green-400 mb-2">{kpis.providers}</div>
+                <div className="text-xs md:text-sm text-muted-foreground">AI Providers</div>
                 <div className="w-full h-1 bg-green-400/20 rounded-full mt-2">
                   <div className="w-full h-1 bg-green-400 rounded-full"></div>
                 </div>
               </div>
               
               <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold text-purple-400 mb-2">{kpis.models}</div>
-                <div className="text-sm text-muted-foreground">Models Available</div>
+                <div className="text-2xl md:text-3xl lg:text-4xl font-bold text-purple-400 mb-2">{kpis.models}</div>
+                <div className="text-xs md:text-sm text-muted-foreground">Models Available</div>
                 <div className="w-full h-1 bg-purple-400/20 rounded-full mt-2">
                   <div className="w-5/6 h-1 bg-purple-400 rounded-full"></div>
                 </div>
@@ -323,16 +323,16 @@ export default async function HomePage() {
         </div>
 
         {/* Final CTA Section */}
-        <div className="text-center mb-20">
-          <div className="glass-card p-12 subtle-glow max-w-4xl mx-auto">
-            <div className="mb-8">
-              <h3 className="text-3xl md:text-4xl font-bold gradient-text mb-4">
+        <div className="text-center mb-12 md:mb-20">
+          <div className="glass-card p-6 md:p-12 subtle-glow max-w-4xl mx-auto">
+            <div className="mb-6 md:mb-8">
+              <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold gradient-text mb-4">
                 Ready to get started?
               </h3>
-              <p className="text-xl text-muted-foreground font-light mb-2">
+              <p className="text-lg md:text-xl text-muted-foreground font-light mb-2">
                 Join the open-source community building distributed AI infrastructure
               </p>
-              <div className="text-accent/80 text-sm">
+              <div className="text-accent/80 text-sm md:text-base">
                 Help us eradicate under-utilization across all hardware
               </div>
             </div>
@@ -349,84 +349,9 @@ export default async function HomePage() {
                 </Link>
               </Button>
             </div>
-<<<<<<< Updated upstream
-          </form>
-          <p className="text-sm text-muted-foreground mt-2">
-            Press <kbd className="px-2 py-1 bg-muted rounded text-xs">/</kbd> to focus search
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-        {/* Featured Models */}
-        <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">Featured Models</h2>
-            <Button variant="outline" asChild>
-              <Link href="/models">View All</Link>
-            </Button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {(featured || []).slice(0, 4).map((model: any) => (
-              <FeaturedModelCard key={model.id} model={model} />
-            ))}
-          </div>
-        </div>
-
-        {/* Quick Links */}
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Quick Start</h3>
-          <div className="space-y-3">
-            <Button variant="outline" className="w-full justify-start" asChild>
-              <Link href="/models">Browse Models</Link>
-            </Button>
-            <Button variant="outline" className="w-full justify-start" asChild>
-              <Link href="/chat">Start Chatting</Link>
-            </Button>
-            <Button variant="outline" className="w-full justify-start" asChild>
-              <Link href="/rankings">View Rankings</Link>
-            </Button>
-            <Button variant="outline" className="w-full justify-start" asChild>
-              <Link href="/docs">Read Docs</Link>
-            </Button>
-          </div>
-          
-          <div className="mt-8 p-4 bg-muted/50 rounded-lg">
-            <h4 className="font-medium mb-2">Why Choose Us?</h4>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Single API for all models</li>
-              <li>• Real-time performance metrics</li>
-              <li>• Transparent pricing</li>
-              <li>• Production-ready infrastructure</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      {/* KPI Stats */}
-      <div className="mb-8">
-        <KPITiles stats={kpis} />
-      </div>
-
-      {/* CTA Section */}
-      <div className="text-center">
-        <div className="bg-muted/50 rounded-lg p-8">
-          <h3 className="text-2xl font-bold mb-4">Ready to get started?</h3>
-          <p className="text-muted-foreground mb-6">
-            Join thousands of developers building the next generation of AI applications.
-          </p>
-          <div className="flex items-center justify-center space-x-4">
-            <Button size="lg" asChild>
-              <Link href="/signin">Get Started</Link>
-            </Button>
-            <Button variant="outline" size="lg" asChild>
-              <Link href="/models">Explore Models</Link>
-            </Button>
-=======
             
             <div className="mt-8 pt-8 border-t border-border">
-              <div className="flex items-center justify-center space-x-8 text-sm text-muted-foreground">
+              <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-8 text-sm text-muted-foreground">
                 <div className="flex items-center space-x-2">
                   <div className="status-dot bg-green-400"></div>
                   <span>No commitment required</span>
@@ -441,7 +366,6 @@ export default async function HomePage() {
                 </div>
               </div>
             </div>
->>>>>>> Stashed changes
           </div>
         </div>
       </div>

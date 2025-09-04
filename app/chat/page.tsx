@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useSearchParams } from 'next/navigation';
-import { Plus, MessageSquare, Settings, Send, Paperclip, Globe } from 'lucide-react';
+import { Plus, MessageSquare, Settings, Send, Paperclip, Globe, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,6 +47,7 @@ function ChatPageContent() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showGPUUtilization, setShowGPUUtilization] = useState(false);
   const [lastBackendUsed, setLastBackendUsed] = useState<'tandemn' | 'openrouter' | 'mock'>('mock');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Debug: Monitor backend changes
   useEffect(() => {
@@ -235,9 +236,27 @@ function ChatPageContent() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
+    <div className="flex h-[calc(100vh-3.5rem)] relative">
+      {/* Mobile Sidebar Toggle */}
+      <button
+        className="md:hidden fixed top-16 left-4 z-50 p-2 bg-background border rounded-md shadow-sm"
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+      >
+        {isSidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+      </button>
+
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Rooms Sidebar */}
-      <div className="w-80 border-r bg-muted/10 flex flex-col">
+      <div className={`w-80 border-r bg-muted/10 flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0 ${
+        isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      } fixed md:relative z-40 md:z-auto h-full md:h-auto`}>
         <div className="p-4 border-b">
           <Button 
             onClick={() => createNewRoom()} 
@@ -263,7 +282,10 @@ function ChatPageContent() {
                   className={`cursor-pointer transition-colors hover:bg-muted/50 ${
                     activeRoomId === room.id ? 'bg-muted' : ''
                   }`}
-                  onClick={() => handleSetActiveRoom(room.id)}
+                  onClick={() => {
+                    handleSetActiveRoom(room.id);
+                    setIsSidebarOpen(false);
+                  }}
                 >
                   <CardContent className="p-3">
                     <h3 className="font-medium text-sm line-clamp-1">
@@ -281,7 +303,7 @@ function ChatPageContent() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex">
+      <div className="flex-1 flex md:ml-0">
         {/* Chat Column */}
         <div className="flex-1 flex flex-col">
           {activeRoom ? (
@@ -314,7 +336,7 @@ function ChatPageContent() {
                     }`}
                   >
                     <div
-                      className={`max-w-[80%] p-3 rounded-lg ${
+                      className={`max-w-[85%] md:max-w-[80%] p-3 md:p-4 rounded-lg ${
                         message.role === 'user'
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-muted'
@@ -387,7 +409,7 @@ function ChatPageContent() {
                 </div>
               )}
               
-              <form onSubmit={handleSubmit} className="flex items-end space-x-2">
+              <form onSubmit={handleSubmit} className="flex flex-col md:flex-row md:items-end space-y-2 md:space-y-0 md:space-x-2">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-2">
                     <Button variant="ghost" size="sm">
@@ -397,21 +419,24 @@ function ChatPageContent() {
                       <Globe className="h-4 w-4" />
                     </Button>
                   </div>
-                  <Input
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    placeholder="Type your message..."
-                    disabled={isStreaming}
-                    className="min-h-[40px]"
-                  />
+                  <div className="flex space-x-2">
+                    <Input
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      placeholder="Type your message..."
+                      disabled={isStreaming}
+                      className="min-h-[40px] md:min-h-[40px] flex-1"
+                    />
+                    <Button 
+                      type="submit" 
+                      disabled={!inputMessage.trim() || isStreaming}
+                      size="icon"
+                      className="h-10 w-10 md:h-9 md:w-9"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <Button 
-                  type="submit" 
-                  disabled={!inputMessage.trim() || isStreaming}
-                  size="icon"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
               </form>
             </div>
           </>
@@ -432,9 +457,9 @@ function ChatPageContent() {
         )}
         </div>
 
-        {/* GPU Utilization Panel */}
+        {/* GPU Utilization Panel - Hidden on mobile */}
         {showGPUUtilization && activeRoom && (
-          <div className="w-96 border-l bg-muted/5 p-4">
+          <div className="w-96 border-l bg-muted/5 p-4 hidden lg:block">
             <GPUUtilization 
               modelName={currentModel?.name}
               isVisible={showGPUUtilization}
@@ -442,9 +467,9 @@ function ChatPageContent() {
           </div>
         )}
 
-        {/* Tandemn Health Panel */}
+        {/* Tandemn Health Panel - Hidden on mobile */}
         {!showGPUUtilization && (
-          <div className="w-96 border-l bg-muted/5 p-4">
+          <div className="w-96 border-l bg-muted/5 p-4 hidden lg:block">
             <TandemnHealth />
           </div>
         )}
