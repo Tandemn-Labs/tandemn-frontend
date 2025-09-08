@@ -35,6 +35,12 @@ const isProtectedRoute = createRouteMatcher([
 ])
 
 export default clerkMiddleware((auth, req) => {
+  // Skip authentication for webhook endpoints
+  if (req.nextUrl.pathname.startsWith('/api/stripe/webhook') || 
+      req.nextUrl.pathname.startsWith('/api/webhooks/')) {
+    return NextResponse.next()
+  }
+
   // Apply rate limiting to API routes (relaxed for development/testing)
   if (req.nextUrl.pathname.startsWith('/api/')) {
     const key = getRateLimitKey(req)

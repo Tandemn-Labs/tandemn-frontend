@@ -5,15 +5,30 @@ import { formatTokens, formatPrice, formatLatency, formatContext } from '@/lib/u
 import { cn } from '@/lib/utils';
 
 interface PriceBadgeProps {
-  price: number;
+  price?: number;
+  inputPrice?: number;
+  outputPrice?: number;
   label?: string;
   className?: string;
 }
 
-export function PriceBadge({ price, label = 'from', className }: PriceBadgeProps) {
+export function PriceBadge({ price, inputPrice, outputPrice, label = 'from', className }: PriceBadgeProps) {
+  if (inputPrice !== undefined && outputPrice !== undefined) {
+    return (
+      <div className={cn('flex space-x-1', className)}>
+        <Badge variant="secondary" className="text-xs">
+          In: {formatPrice(inputPrice)}
+        </Badge>
+        <Badge variant="outline" className="text-xs">
+          Out: {formatPrice(outputPrice)}
+        </Badge>
+      </div>
+    );
+  }
+  
   return (
     <Badge variant="outline" className={cn('text-xs', className)}>
-      {label} {formatPrice(price)}
+      {label} {formatPrice(price || 0)}
     </Badge>
   );
 }

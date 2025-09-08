@@ -1,8 +1,10 @@
 import React from 'react';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FeaturedModelCard } from '@/components/featured-model-card';
+import { KPITiles } from '@/components/kpi-tiles';
 
 async function getFeaturedData() {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
@@ -27,7 +29,7 @@ async function getFeaturedData() {
 }
 
 export default async function HomePage() {
-  const { kpis } = await getFeaturedData();
+  const { featured, kpis } = await getFeaturedData();
 
   return (
     <div className="min-h-screen relative">
@@ -321,6 +323,28 @@ export default async function HomePage() {
             </div>
           </div>
         </div>
+
+        {/* KPI Statistics */}
+        <div className="mb-12 md:mb-20">
+          <KPITiles stats={kpis} enableRealTime={true} />
+        </div>
+
+        {/* Featured Models */}
+        {featured && featured.length > 0 && (
+          <div className="mb-12 md:mb-20">
+            <div className="text-center mb-8 md:mb-12">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold gradient-text mb-4">Featured Models</h2>
+              <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto">
+                Top performing models based on usage and community feedback
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featured.map((model: any) => (
+                <FeaturedModelCard key={model.id} model={model} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Final CTA Section */}
         <div className="text-center mb-12 md:mb-20">

@@ -3,11 +3,18 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useSearchParams } from 'next/navigation';
-import { Plus, MessageSquare, Settings, Send, Paperclip, Globe, Menu, X } from 'lucide-react';
+import { Plus, MessageSquare, Settings, Send, Paperclip, Globe, Menu, X, Zap, ChevronDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useRoomsStore } from '@/store/rooms';
 import { ChatRoom, Message, Model } from '@/mock/types';
 import { GPUUtilization } from '@/components/gpu-utilization';
@@ -48,6 +55,7 @@ function ChatPageContent() {
   const [showGPUUtilization, setShowGPUUtilization] = useState(false);
   const [lastBackendUsed, setLastBackendUsed] = useState<'tandemn' | 'openrouter' | 'mock'>('mock');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [userCredits, setUserCredits] = useState<number>(0);
 
   // Debug: Monitor backend changes
   useEffect(() => {
@@ -57,11 +65,24 @@ function ChatPageContent() {
   const activeRoom = rooms.find(room => room.id === activeRoomId);
   const roomMessages = activeRoomId ? messages[activeRoomId] || [] : [];
 
+  // Fetch user credits
+  const fetchUserCredits = async () => {
+    try {
+      const response = await fetch('/api/credits');
+      if (response.ok) {
+        const data = await response.json();
+        setUserCredits(data.balance || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user credits:', error);
+    }
+  };
+
   // Fetch models on mount
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const response = await fetch('/api/models?limit=10&sort=popularity');
+        const response = await fetch('/api/models?limit=5&sort=popularity');
         const data = await response.json();
         setModels(data.items || []);
         if (data.items?.length > 0) {
@@ -76,6 +97,7 @@ function ChatPageContent() {
       }
     };
     fetchModels();
+    fetchUserCredits();
   }, []);
 
   // Fetch user rooms on mount
@@ -162,7 +184,16 @@ function ChatPageContent() {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to send message');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 402) {
+          // Payment Required - insufficient credits
+          const requiredCredits = errorData.requiredCredits || 0;
+          const currentCredits = errorData.currentCredits || 0;
+          throw new Error(`Insufficient credits: Need $${requiredCredits.toFixed(4)} but only have $${currentCredits.toFixed(4)}. Please purchase more credits.`);
+        }
+        throw new Error(errorData.error || 'Failed to send message');
+      }
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response stream');
@@ -207,7 +238,9 @@ function ChatPageContent() {
               }
               if (data.done) {
                 setIsStreaming(false);
-                setTimeout(() => setShowGPUUtilization(false), 2000); // Hide after 2 seconds
+                setTimeout(() => setShowGPUUtilization(false), 3000); // Hide after 3 seconds
+                // Refresh user credits after successful API call
+                fetchUserCredits();
                 return;
               }
             } catch (e) {
@@ -234,6 +267,26 @@ function ChatPageContent() {
     "What are the latest trends in AI?",
     "Help me debug this code",
   ];
+
+  // Show sign-in prompt for unauthenticated users
+  if (!isSignedIn) {
+    return (
+      <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <MessageSquare className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+          <h2 className="text-2xl font-semibold mb-4">Sign in to Chat</h2>
+          <p className="text-muted-foreground mb-6">
+            Please sign in to start chatting with AI models and access your conversation history.
+          </p>
+          <Button asChild className="w-full">
+            <a href="/sign-in">
+              Sign In
+            </a>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] relative">
@@ -308,12 +361,64 @@ function ChatPageContent() {
         <div className="flex-1 flex flex-col">
           {activeRoom ? (
             <>
-              {/* Model Tab Strip */}
+              {/* Model Selection Strip */}
               <div className="border-b p-4">
-                <div className="flex items-center space-x-2">
-                  <Badge variant="outline" className="px-3 py-1">
-                    {currentModel?.name || 'Loading...'}
-                  </Badge>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-medium">Model:</span>
+                    <Select
+                      value={currentModel?.id || ''}
+                      onValueChange={(modelId) => {
+                        const selectedModel = models.find(m => m.id === modelId);
+                        if (selectedModel) {
+                          setCurrentModel(selectedModel);
+                        }
+                      }}
+                      disabled={isStreaming}
+                    >
+                      <SelectTrigger className="w-[280px]">
+                        <SelectValue placeholder="Select a model">
+                          {currentModel ? (
+                            <div className="flex items-center space-x-2">
+                              <span className="font-medium">{currentModel.name}</span>
+                              <div className="flex space-x-1">
+                                <Badge variant="secondary" className="text-xs">
+                                  In: ${currentModel.promptPrice.toFixed(3)}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  Out: ${currentModel.completionPrice.toFixed(3)}
+                                </Badge>
+                              </div>
+                            </div>
+                          ) : (
+                            'Loading models...'
+                          )}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {models.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-medium">{model.name}</span>
+                                <div className="flex space-x-1">
+                                  <Badge variant="secondary" className="text-xs">
+                                    In: ${model.promptPrice.toFixed(3)}
+                                  </Badge>
+                                  <Badge variant="outline" className="text-xs">
+                                    Out: ${model.completionPrice.toFixed(3)}
+                                  </Badge>
+                                </div>
+                              </div>
+                              {currentModel?.id === model.id && (
+                                <Check className="h-4 w-4 ml-2" />
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Button variant="ghost" size="sm">
                     <Settings className="h-4 w-4" />
                   </Button>
@@ -409,6 +514,22 @@ function ChatPageContent() {
                 </div>
               )}
               
+              {/* Credit Balance Display */}
+              <div className="flex items-center justify-between mb-2 px-1">
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                  <Zap className="h-4 w-4" />
+                  <span>Credits: ${userCredits.toFixed(4)}</span>
+                  {userCredits < 0.01 && (
+                    <Badge variant="destructive" className="text-xs">
+                      Low Balance
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {currentModel && `Using ${currentModel.name}`}
+                </div>
+              </div>
+
               <form onSubmit={handleSubmit} className="flex flex-col md:flex-row md:items-end space-y-2 md:space-y-0 md:space-x-2">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-2">
@@ -463,6 +584,7 @@ function ChatPageContent() {
             <GPUUtilization 
               modelName={currentModel?.name}
               isVisible={showGPUUtilization}
+              isStreaming={isStreaming}
             />
           </div>
         )}

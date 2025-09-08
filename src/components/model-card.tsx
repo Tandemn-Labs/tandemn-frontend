@@ -41,7 +41,7 @@ export function ModelCard({ model, view }: ModelCardProps) {
             </div>
 
             <div className="flex items-center justify-between">
-              <PriceBadge price={model.promptPrice} />
+              <PriceBadge inputPrice={model.promptPrice} outputPrice={model.completionPrice} />
               <PillStat label="tokens/week" value={model.tokensPerWeek} />
             </div>
 
@@ -81,7 +81,7 @@ export function ModelCard({ model, view }: ModelCardProps) {
                 <span>•</span>
                 <ContextBadge tokens={model.context} />
                 <span>•</span>
-                <PriceBadge price={model.promptPrice} />
+                <PriceBadge inputPrice={model.promptPrice} outputPrice={model.completionPrice} />
               </div>
             </div>
 

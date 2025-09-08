@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { db } from '@/mock/db';
 import { chatSendSchema } from '@/lib/zod-schemas';
-import { chargeCredits, getUserCredits } from '@/lib/credits';
+import { chargeCredits, getUserCredits, calculateTokenCost } from '@/lib/credits';
 import { sleep } from '@/lib/utils';
 import { tandemnClient, mapModelToOpenRouter } from '@/lib/tandemn-client';
 import { openRouterClient } from '@/lib/openrouter-client';
@@ -32,21 +32,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check user credits for authenticated users (1 credit per request)
-    // Temporarily disabled for testing
-    /*
+    // Calculate conversation text for token estimation
+    const conversationText = messages.map(m => m.content).join(' ');
+    
+    // Check user credits for authenticated users (based on model pricing)
+    const estimatedInputTokens = Math.ceil(conversationText.length / 4);
+    const estimatedOutputTokens = Math.ceil(2000 / 4); // Assume max tokens for estimation
+    const estimatedCost = calculateTokenCost(model.id, estimatedInputTokens, estimatedOutputTokens);
+    
     if (userId) {
       const userCredits = await getUserCredits(userId);
-      const creditCost = 1;
       
-      if (userCredits < creditCost) {
+      if (userCredits < estimatedCost) {
         return NextResponse.json(
-          { error: 'Insufficient credits. Please purchase more credits to continue.' },
+          { 
+            error: `Insufficient credits. You need $${estimatedCost.toFixed(2)} but only have $${userCredits.toFixed(2)}. Please purchase more credits to continue.`,
+            requiredCredits: estimatedCost,
+            currentCredits: userCredits
+          },
           { status: 402 } // Payment Required
         );
       }
     }
-    */
     
     // Store the user message in MongoDB with encryption
     if (roomId) {
@@ -67,8 +74,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate approximate token usage for the entire conversation
-    const conversationText = messages.map(m => m.content).join(' ');
+    // Calculate approximate token usage for the entire conversation  
     const inputTokens = Math.ceil(conversationText.length / 4); // Rough estimate: 4 chars per token
     const startTime = Date.now();
     
@@ -243,12 +249,15 @@ export async function POST(request: NextRequest) {
                 cost: totalCost,
               });
               
-              // Charge 1 credit for chat usage
-              await chargeCredits(1, `Chat: ${model.name}`, userId, { 
+              // Charge credits based on actual token usage and model pricing
+              const actualCost = calculateTokenCost(model.id, inputTokens, outputTokens);
+              await chargeCredits(actualCost, `${model.name}: ${inputTokens} input + ${outputTokens} output tokens`, userId, { 
                 modelId: model.id, 
                 roomId, 
                 inputTokens, 
-                outputTokens 
+                outputTokens,
+                backend: backendUsed,
+                cost: actualCost
               });
             }
             

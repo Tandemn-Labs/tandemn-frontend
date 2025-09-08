@@ -19,10 +19,11 @@ interface GPUWorker {
 interface GPUUtilizationProps {
   modelName?: string;
   isVisible?: boolean;
+  isStreaming?: boolean;
   className?: string;
 }
 
-export function GPUUtilization({ modelName = "GPT OSS 120B", isVisible = true, className }: GPUUtilizationProps) {
+export function GPUUtilization({ modelName = "GPT OSS 120B", isVisible = true, isStreaming = false, className }: GPUUtilizationProps) {
   const [workers, setWorkers] = useState<GPUWorker[]>([
     {
       id: 'rtx-4090-1',
@@ -64,8 +65,8 @@ export function GPUUtilization({ modelName = "GPT OSS 120B", isVisible = true, c
   useEffect(() => {
     if (!isVisible) return;
 
-    // Start animation sequence when component becomes visible
-    const startAnimation = () => {
+    if (isStreaming) {
+      // Start processing animation and keep it running while streaming
       setAnimationPhase('processing');
       
       // Animate workers sequentially
@@ -79,24 +80,30 @@ export function GPUUtilization({ modelName = "GPT OSS 120B", isVisible = true, c
         }, index * 200);
       });
 
-      // Complete animation after processing
-      setTimeout(() => {
-        setAnimationPhase('completing');
-        setWorkers(prev => prev.map(w => ({ ...w, status: 'completing' })));
-        
-        setTimeout(() => {
-          setAnimationPhase('idle');
-          setWorkers(prev => prev.map(w => ({ 
-            ...w, 
-            status: 'idle', 
-            utilization: 0 
-          })));
-        }, 1000);
-      }, 3000);
-    };
+      // Keep updating utilization while streaming
+      const updateInterval = setInterval(() => {
+        setWorkers(prev => prev.map(w => ({
+          ...w,
+          utilization: w.status === 'active' ? Math.random() * 80 + 20 : w.utilization
+        })));
+      }, 1000);
 
-    startAnimation();
-  }, [isVisible]);
+      return () => clearInterval(updateInterval);
+    } else if (animationPhase === 'processing') {
+      // Complete animation when streaming stops
+      setAnimationPhase('completing');
+      setWorkers(prev => prev.map(w => ({ ...w, status: 'completing' })));
+      
+      setTimeout(() => {
+        setAnimationPhase('idle');
+        setWorkers(prev => prev.map(w => ({ 
+          ...w, 
+          status: 'idle', 
+          utilization: 0 
+        })));
+      }, 1000);
+    }
+  }, [isVisible, isStreaming]);
 
   // Animate individual blocks
   const renderBlocks = (worker: GPUWorker) => {
