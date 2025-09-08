@@ -142,19 +142,25 @@ async function tryTandemChat(
       stream: validatedRequest.stream
     };
 
-    // Create a new request to forward to Tandem's internal API
-    const tandemRequest = new NextRequest(new URL('/api/v1/chat', request.url), {
+    // Get the base URL for internal API calls
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : process.env.NEXT_PUBLIC_DOMAIN 
+      ? process.env.NEXT_PUBLIC_DOMAIN 
+      : 'http://localhost:3000';
+
+    // Make HTTP request to internal Tandem API (fixes Vercel serverless issue)
+    const tandemResponse = await fetch(`${baseUrl}/api/v1/chat`, {
       method: 'POST',
-      headers: request.headers,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': request.headers.get('Authorization') || '',
+      },
       body: JSON.stringify(tandemRequestBody),
     });
-
-    // Import the POST handler from the internal chat route
-    const { POST: tandemChatHandler } = await import('../chat/route');
-    const tandemResponse = await tandemChatHandler(tandemRequest);
     
     // Check if the response is successful
-    if (tandemResponse.status >= 200 && tandemResponse.status < 300) {
+    if (tandemResponse.ok) {
       // Add a flag to indicate this came from Tandem
       const responseData = await tandemResponse.json();
       return NextResponse.json({
