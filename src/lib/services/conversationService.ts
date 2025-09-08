@@ -79,15 +79,25 @@ export class ConversationService {
       .sort({ lastMessageAt: -1 })
       .limit(50);
 
-    return conversations.map(conv => ({
-      id: conv._id.toString(),
-      title: decryptForUser(conv.title, userId),
-      modelId: conv.modelId,
-      createdAt: conv.createdAt.toISOString(),
-      updatedAt: conv.updatedAt.toISOString(),
-      messageCount: conv.messageCount,
-      lastMessageAt: conv.lastMessageAt.toISOString(),
-    }));
+    return conversations.map(conv => {
+      let title;
+      try {
+        title = decryptForUser(conv.title, userId);
+      } catch (error) {
+        console.warn(`Failed to decrypt conversation title for ${conv._id}, using fallback:`, error instanceof Error ? error.message : 'Unknown error');
+        title = `Conversation ${conv._id.toString().slice(-6)}`; // Fallback title
+      }
+
+      return {
+        id: conv._id.toString(),
+        title,
+        modelId: conv.modelId,
+        createdAt: conv.createdAt.toISOString(),
+        updatedAt: conv.updatedAt.toISOString(),
+        messageCount: conv.messageCount,
+        lastMessageAt: conv.lastMessageAt.toISOString(),
+      };
+    });
   }
 
   /**
@@ -99,9 +109,17 @@ export class ConversationService {
     const conversation = await Conversation.findOne({ _id: conversationId, userId });
     if (!conversation) return null;
 
+    let title;
+    try {
+      title = decryptForUser(conversation.title, userId);
+    } catch (error) {
+      console.warn(`Failed to decrypt conversation title for ${conversation._id}, using fallback:`, error instanceof Error ? error.message : 'Unknown error');
+      title = `Conversation ${conversation._id.toString().slice(-6)}`;
+    }
+
     return {
       id: conversation._id.toString(),
-      title: decryptForUser(conversation.title, userId),
+      title,
       modelId: conversation.modelId,
       createdAt: conversation.createdAt.toISOString(),
       updatedAt: conversation.updatedAt.toISOString(),
