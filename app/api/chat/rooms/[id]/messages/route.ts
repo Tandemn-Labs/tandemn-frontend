@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { ConversationService } from '@/lib/services/conversationService';
 
+// API route to get messages for a specific conversation
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

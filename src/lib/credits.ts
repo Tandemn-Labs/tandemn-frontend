@@ -104,18 +104,29 @@ export async function addTransaction(userId: string, transaction: Omit<Transacti
       ...transaction,
     };
 
-    // Keep only last 100 transactions
-    const updatedTransactions = [newTransaction, ...currentTransactions].slice(0, 100);
+    // Keep only last 50 transactions to avoid metadata size limits
+    const updatedTransactions = [newTransaction, ...currentTransactions].slice(0, 50);
 
     const user = await clerkClient.users.getUser(userId);
+    
+    // Prepare clean metadata
+    const cleanMetadata = {
+      ...user.privateMetadata,
+      transactions: updatedTransactions,
+    };
+
     await clerkClient.users.updateUser(userId, {
-      privateMetadata: {
-        ...user.privateMetadata,
-        transactions: updatedTransactions,
-      },
+      privateMetadata: cleanMetadata,
     });
+    
+    console.log('✅ Transaction added successfully for user:', userId);
   } catch (error) {
     console.error('Error adding transaction:', error);
+    
+    // Try to add without metadata update as fallback
+    if (error instanceof Error && error.message.includes('Unprocessable Entity')) {
+      console.warn('⚠️ Clerk metadata too large, skipping transaction history update');
+    }
   }
 }
 

@@ -97,55 +97,27 @@ export async function POST(request: NextRequest) {
       const tandemnResponse = await tandemnClient.inferWithTimeout(tandemnRequest, 10000);
       
       if (tandemnResponse && tandemnResponse.result) {
-        // Use the actual result from the mocked Tandemn backend
+        // Use the actual result from the real Tandemn backend
         response = tandemnResponse.result;
         outputTokens = Math.ceil(response.length / 4);
         backendUsed = 'tandemn';
-        console.log('🔧 API: Setting backendUsed to tandemn (mocked with OpenRouter)');
+        console.log('🔧 API: Setting backendUsed to tandemn (real backend)');
       }
     } catch (tandemnError) {
-      console.warn('🚨 TANDEMN BACKEND FAILED - FALLING BACK TO OPENROUTER');
-      console.warn('Error details:', tandemnError);
-      console.warn('Model attempted:', model.id);
-      console.warn('Conversation length:', messages.length, 'messages');
+      console.error('❌ TANDEMN BACKEND FAILED');
+      console.error('Error details:', tandemnError);
+      console.error('Model attempted:', model.id);
+      console.error('Conversation length:', messages.length, 'messages');
       
-      try {
-        // Fallback to OpenRouter
-        const openRouterModel = mapModelToOpenRouter(model.id);
-        const openRouterRequest = {
-          model: openRouterModel,
-          messages: messages,
-          max_tokens: 2000,
-        };
-        
-        console.log('🔄 FALLBACK: Using OpenRouter API with model:', model.id, '→', openRouterModel);
-        const openRouterResponse = await openRouterClient.chatWithTimeout(openRouterRequest, 30000);
-        
-        if (openRouterResponse && openRouterResponse.choices?.[0]?.message?.content) {
-          response = openRouterResponse.choices[0].message.content;
-          outputTokens = openRouterResponse.usage?.completion_tokens || Math.ceil(response.length / 4);
-          backendUsed = 'openrouter';
-          console.log('✅ FALLBACK SUCCESS: OpenRouter response received');
-          console.log('Response length:', response.length, 'characters');
-          console.log('🔧 API: Setting backendUsed to:', backendUsed);
-        }
-      } catch (openRouterError) {
-        console.error('❌ CRITICAL: Both tandemn and OpenRouter failed!');
-        console.error('OpenRouter error:', openRouterError);
-        console.error('Using mock response as final fallback');
-        // Fallback to mock response with conversation awareness
-        const latestUserMessage = messages.filter(m => m.role === 'user').slice(-1)[0]?.content || '';
-        const mockResponses = [
-          `I'm ${model.name}, and I understand you mentioned: "${latestUserMessage.substring(0, 50)}${latestUserMessage.length > 50 ? '...' : ''}". Let me help with that.`,
-          `Based on our conversation so far (${messages.length} messages), I can assist you further. What specific aspect would you like me to focus on?`,
-          `Hello! I'm ${model.name} with ${model.context.toLocaleString()} tokens of context. I see we've been discussing various topics - how can I help you next?`,
-          `Thank you for continuing our conversation! As ${model.name}, I can provide contextual responses based on what we've discussed.`,
-          `I appreciate the ongoing dialogue. With ${messages.length} messages exchanged, I'm building a good understanding of what you need.`,
-        ];
-        response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-        backendUsed = 'mock';
-        console.log('🔧 API: Setting backendUsed to mock');
-      }
+      // TESTING: No fallback to OpenRouter - fail fast to debug Tandem issues
+      return NextResponse.json(
+        { 
+          error: `Tandem backend failed: ${tandemnError instanceof Error ? tandemnError.message : 'Unknown error'}. Please check if Tandem backend is running at ${process.env.TANDEMN_BACKEND_URL}`,
+          backend: 'tandemn',
+          endpoint: `${process.env.TANDEMN_BACKEND_URL}/v1/chat/completions`
+        },
+        { status: 503 } // Service Unavailable
+      );
     }
     
     // Calculate tokens and cost

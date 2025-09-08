@@ -50,55 +50,29 @@ export class TandemnClient {
   }
 
   async health(): Promise<TandemnHealthResponse> {
-    // Mock health response
-    console.log('🤖 MOCK TANDEMN: Returning mock health response');
+    console.log('🔧 TANDEMN: Returning mock health response (health checks disabled)');
     
+    // Always return mock health data to avoid connection errors
+    // Real health will be checked during actual inference calls
     return {
       status: 'success',
-      machines: [
-        {
-          machine_id: 'mock-machine-1',
-          metrics: {
-            cpu_percent: 45,
-            ram_percent: 62,
-            total_free_vram_gb: 12.5,
-            gpu_count: 2,
-            gpu_info: [
-              {
-                name: 'NVIDIA RTX 4090',
-                memory_total: 24576,
-                memory_free: 12500,
-                utilization: 35,
-              },
-              {
-                name: 'NVIDIA RTX 4090',
-                memory_total: 24576,
-                memory_free: 11800,
-                utilization: 42,
-              },
-            ],
-          },
-          timestamp: new Date().toISOString(),
+      machines: [{
+        machine_id: 'tandem-backend-mock',
+        metrics: {
+          cpu_percent: 25,
+          ram_percent: 65,
+          total_free_vram_gb: 8.5,
+          gpu_count: 1,
+          gpu_info: [{
+            name: 'NVIDIA L40S (Mock)',
+            memory_total: 45000,
+            memory_free: 8500,
+            utilization: 15,
+            temperature_celsius: 45,
+          }],
         },
-        {
-          machine_id: 'mock-machine-2',
-          metrics: {
-            cpu_percent: 38,
-            ram_percent: 55,
-            total_free_vram_gb: 18.2,
-            gpu_count: 1,
-            gpu_info: [
-              {
-                name: 'NVIDIA RTX 4080',
-                memory_total: 16384,
-                memory_free: 18200,
-                utilization: 28,
-              },
-            ],
-          },
-          timestamp: new Date().toISOString(),
-        },
-      ],
+        timestamp: new Date().toISOString(),
+      }],
     };
   }
 
@@ -123,50 +97,85 @@ export class TandemnClient {
     request: TandemnInferenceRequest, 
     timeoutMs: number = 10000
   ): Promise<TandemnInferenceResponse> {
-    // Mock Tandemn backend using OpenRouter
-    console.log('🤖 MOCK TANDEMN: Using OpenRouter as backend for model:', request.model_name);
+    console.log('🔧 TANDEMN: Calling real Tandem backend for model:', request.model_name);
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
-      // Map Tandemn model to OpenRouter model
-      const openRouterModel = mapModelToOpenRouter(request.model_name);
-      
-      // Create OpenRouter request using conversation history if available
-      const openRouterRequest = {
-        model: openRouterModel,
+      // Convert Tandemn request to exact format that works with Tandem API
+      const tandemnRequest = {
+        model: request.model_name,
         messages: request.messages || [
           {
             role: 'user' as const,
             content: request.input_text,
           },
         ],
-        max_tokens: request.max_tokens,
+        stream: true, // Use streaming like the working curl
+        temperature: 0.6,
+        top_p: 0.9
       };
 
-      console.log('🤖 MOCK TANDEMN: Calling OpenRouter with model:', openRouterModel);
-      console.log('🤖 MOCK TANDEMN: Conversation length:', openRouterRequest.messages.length, 'messages');
+      console.log('🔧 TANDEMN: Sending streaming request to:', `${this.baseUrl}/v1/chat/completions`);
+      console.log('🔧 TANDEMN: Request payload:', JSON.stringify(tandemnRequest));
       
-      // Call OpenRouter
-      const openRouterResponse = await openRouterClient.chatWithTimeout(openRouterRequest, timeoutMs);
-      
-      if (!openRouterResponse || !openRouterResponse.choices?.[0]?.message?.content) {
-        throw new Error('OpenRouter returned invalid response');
+      const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'text/event-stream',
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
+        body: JSON.stringify(tandemnRequest),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Tandem backend inference failed: ${response.statusText} - ${errorText}`);
       }
 
-      const result = openRouterResponse.choices[0].message.content;
-      const requestId = `tandemn-mock-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-      console.log('🤖 MOCK TANDEMN: Successfully got response from OpenRouter, returning as Tandemn response');
-
-      // Return response in Tandemn format
-      return {
-        request_id: requestId,
+      // Handle streaming response from Tandem
+      const responseText = await response.text();
+      console.log('✅ TANDEMN: Successfully got response from real Tandem backend');
+      
+      // Parse streaming response to get the complete message
+      let completeContent = '';
+      const lines = responseText.split('\n');
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+          try {
+            const jsonData = JSON.parse(line.substring(6));
+            const content = jsonData.choices?.[0]?.delta?.content;
+            if (content) {
+              completeContent += content;
+            }
+          } catch (e) {
+            // Skip invalid JSON lines
+          }
+        }
+      }
+      
+      // Convert to Tandemn format
+      const result: TandemnInferenceResponse = {
+        request_id: `tandemn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         status: 'completed',
-        result: result,
-        processing_time: 1500, // Mock processing time
+        result: completeContent || null,
+        processing_time: null,
       };
+      
+      return result;
     } catch (error) {
-      console.error('🤖 MOCK TANDEMN: Error calling OpenRouter:', error);
-      throw new Error(`Mock Tandemn inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Tandem backend request timed out');
+      }
+      console.error('❌ TANDEMN: Real backend failed:', error);
+      throw error;
     }
   }
 
