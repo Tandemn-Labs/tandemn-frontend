@@ -119,6 +119,7 @@ export class TandemnClient {
 
       console.log('🔧 TANDEMN: Sending streaming request to:', `${this.baseUrl}/v1/chat/completions`);
       console.log('🔧 TANDEMN: Request payload:', JSON.stringify(tandemnRequest));
+      console.log('🔧 TANDEMN: Production deployment test - backend URL:', this.baseUrl);
       
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: 'POST',

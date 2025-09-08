@@ -17,7 +17,7 @@ export interface EncryptedData {
  */
 export function encrypt(text: string): EncryptedData {
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipher(ALGORITHM, KEY);
+  const cipher = crypto.createCipheriv(ALGORITHM, KEY, iv);
   
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
@@ -42,7 +42,8 @@ export function decrypt(encryptedData: EncryptedData): string {
     throw new Error('Data integrity check failed');
   }
   
-  const decipher = crypto.createDecipher(ALGORITHM, KEY);
+  const iv = Buffer.from(encryptedData.iv, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, KEY, iv);
   
   let decrypted = decipher.update(encryptedData.data, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
@@ -63,7 +64,7 @@ export function getUserKey(userId: string): Buffer {
 export function encryptForUser(text: string, userId: string): EncryptedData {
   const userKey = getUserKey(userId);
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipher(ALGORITHM, userKey);
+  const cipher = crypto.createCipheriv(ALGORITHM, userKey, iv);
   
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
@@ -90,7 +91,8 @@ export function decryptForUser(encryptedData: EncryptedData, userId: string): st
     throw new Error('Data integrity check failed or wrong user');
   }
   
-  const decipher = crypto.createDecipher(ALGORITHM, userKey);
+  const iv = Buffer.from(encryptedData.iv, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, userKey, iv);
   
   let decrypted = decipher.update(encryptedData.data, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
