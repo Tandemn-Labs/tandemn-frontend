@@ -23,38 +23,30 @@ interface GPUUtilizationProps {
   className?: string;
 }
 
-export function GPUUtilization({ modelName = "GPT OSS 120B", isVisible = true, isStreaming = false, className }: GPUUtilizationProps) {
+export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, isStreaming = false, className }: GPUUtilizationProps) {
   const [workers, setWorkers] = useState<GPUWorker[]>([
     {
-      id: 'rtx-4090-1',
-      name: 'RTX 4090',
-      location: 'Ondocho-takasu, Japan',
+      id: 'nvidia-l40-1',
+      name: 'NVIDIA L40',
+      location: 'US-East-1',
       utilization: 0,
-      blocks: 24,
+      blocks: 30,
       status: 'idle'
     },
     {
-      id: 'rtx-4090-2', 
-      name: 'RTX 4090',
-      location: 'Yotsukaido, Japan',
+      id: 'nvidia-l40-2', 
+      name: 'NVIDIA L40',
+      location: 'US-West-2',
       utilization: 0,
-      blocks: 24,
+      blocks: 30,
       status: 'idle'
     },
     {
-      id: 'rtx-4090-3',
-      name: 'RTX 4090', 
-      location: 'Tokyo, Japan',
+      id: 'nvidia-a10g-1',
+      name: 'NVIDIA A10G', 
+      location: 'EU-Central-1',
       utilization: 0,
-      blocks: 24,
-      status: 'idle'
-    },
-    {
-      id: 'rtx-4090-4',
-      name: 'RTX 4090',
-      location: 'Gohongi, Japan', 
-      utilization: 0,
-      blocks: 24,
+      blocks: 30,
       status: 'idle'
     }
   ]);
@@ -198,7 +190,7 @@ export function GPUUtilization({ modelName = "GPT OSS 120B", isVisible = true, i
               <div key={worker.id} className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{worker.name} ({worker.blocks}GB)</span>
+                    <span className="font-medium">{worker.name} (30GB)</span>
                     <span className="text-muted-foreground">{worker.location}</span>
                   </div>
                   <Badge 
@@ -232,7 +224,7 @@ export function GPUUtilization({ modelName = "GPT OSS 120B", isVisible = true, i
               <div className="grid grid-cols-2 gap-4 text-xs">
                 <div>
                   <span className="text-muted-foreground">Total Memory</span>
-                  <div className="font-medium">{workers.length * 24}GB</div>
+                  <div className="font-medium">{workers.length * 30}GB</div>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Avg Utilization</span>

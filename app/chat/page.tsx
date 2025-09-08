@@ -53,14 +53,10 @@ function ChatPageContent() {
   const [inputMessage, setInputMessage] = useState(initialQuery || '');
   const [isStreaming, setIsStreaming] = useState(false);
   const [showGPUUtilization, setShowGPUUtilization] = useState(false);
-  const [lastBackendUsed, setLastBackendUsed] = useState<'tandemn' | 'openrouter' | 'mock'>('mock');
+  const [lastBackendUsed, setLastBackendUsed] = useState<'tandemn' | 'openrouter' | 'mock'>('tandemn');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userCredits, setUserCredits] = useState<number>(0);
 
-  // Debug: Monitor backend changes
-  useEffect(() => {
-    console.log('🔄 Chat: lastBackendUsed changed to:', lastBackendUsed);
-  }, [lastBackendUsed]);
 
   const activeRoom = rooms.find(room => room.id === activeRoomId);
   const roomMessages = activeRoomId ? messages[activeRoomId] || [] : [];
@@ -229,10 +225,8 @@ function ChatPageContent() {
                 updateMessage(activeRoomId, assistantMessageId, { content: assistantContent });
               }
               if (data.backend) {
-                console.log('🔄 Chat: Received backend data:', data.backend);
                 backendUsed = data.backend;
                 setLastBackendUsed(data.backend);
-                console.log('🔄 Chat: Updated lastBackendUsed to:', data.backend);
                 // Update the message with backend information
                 updateMessage(activeRoomId, assistantMessageId, { backend: data.backend });
               }
@@ -469,32 +463,10 @@ function ChatPageContent() {
 
             {/* Input Area */}
             <div className="border-t p-4">
-              {/* Debug: Show current backend state (development only) */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="mb-2 text-xs text-gray-500">
-                  Current backend: {lastBackendUsed} | 
-                  <span className="ml-2 text-blue-600">Debug: Check console for logs</span>
-                </div>
-              )}
-              
               <FallbackNotification 
                 backend={lastBackendUsed} 
-                onDismiss={() => setLastBackendUsed('mock')}
+                onDismiss={() => setLastBackendUsed('tandemn')}
               />
-              
-              {/* Debug: Test button to trigger fallback notification (development only) */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="mb-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setLastBackendUsed('openrouter')}
-                    className="text-xs"
-                  >
-                    Test Fallback Notification
-                  </Button>
-                </div>
-              )}
               {roomMessages.length === 0 && (
                 <div className="mb-4">
                   <p className="text-sm text-muted-foreground mb-2">Try these prompts:</p>

@@ -17,29 +17,22 @@ export function FallbackNotification({ backend, onDismiss }: FallbackNotificatio
   const isDevelopment = process.env.NODE_ENV === 'development';
 
   useEffect(() => {
-    console.log('FallbackNotification: backend changed to:', backend);
-    // Only show notification in development mode
+    // Only show notification in development mode for fallback services
     if (isDevelopment && (backend === 'openrouter' || backend === 'mock')) {
-      console.log('FallbackNotification: Showing notification for fallback (dev mode)');
       setIsVisible(true);
-      // Auto-hide after 15 seconds (longer for better visibility)
+      // Auto-hide after 15 seconds
       const timer = setTimeout(() => {
-        console.log('FallbackNotification: Auto-hiding notification');
         setIsVisible(false);
         onDismiss?.();
       }, 15000);
       return () => clearTimeout(timer);
     } else {
-      console.log('FallbackNotification: Hiding notification for backend:', backend, 'dev mode:', isDevelopment);
       setIsVisible(false);
     }
   }, [backend, onDismiss, isDevelopment]);
-
-  console.log('FallbackNotification: Rendering, isVisible:', isVisible, 'backend:', backend, 'dev mode:', isDevelopment);
   
-  // Don't render if not in development mode or if notification should be hidden
-  if (!isDevelopment || !isVisible || (backend !== 'openrouter' && backend !== 'mock')) {
-    console.log('FallbackNotification: Not rendering, returning null');
+  // Don't render if backend is tandemn (primary system) or if notification should be hidden
+  if (backend === 'tandemn' || !isDevelopment || !isVisible || (backend !== 'openrouter' && backend !== 'mock')) {
     return null;
   }
 

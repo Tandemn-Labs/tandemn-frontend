@@ -26,3 +26,25 @@ export const createRoomSchema = z.object({
   title: z.string().optional(),
   modelId: z.string(),
 });
+
+export const externalChatCompletionSchema = z.object({
+  model: z.string(),
+  stream: z.boolean(),
+  messages: z.array(z.object({
+    role: z.enum(['system', 'user', 'assistant']),
+    content: z.string(),
+  })),
+  max_completion_tokens: z.number().optional(),
+  temperature: z.number().optional(),
+  top_p: z.number().optional(),
+  top_k: z.number().optional(),
+  min_p: z.number().optional(),
+  min_tokens: z.number().optional(),
+  seed: z.number().optional(),
+  frequency_penalty: z.number().optional(),
+  repetition_penalty: z.number().optional(),
+  presence_penalty: z.number().optional(),
+  n: z.number().optional(),
+  eos_token_id: z.array(z.number()).optional(),
+  stop: z.array(z.string()).optional(),
+});
