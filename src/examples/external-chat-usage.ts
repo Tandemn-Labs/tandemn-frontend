@@ -1,4 +1,4 @@
-import { externalChatAPI, convertMessages } from '@/lib/external-chat-api';
+import { externalChatAPI, tandemChatAPI, convertMessages, ExternalChatAPI } from '@/lib/external-chat-api';
 
 // Example usage of the fallback chat API
 // This will try Tandem first, then fallback to OpenRouter if needed
@@ -76,12 +76,13 @@ export async function useFallbackAPIRoute(apiKey: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3.3-70b-instruct', // This will be used for both Tandem and OpenRouter
+        model: 'casperhansen/llama-3.3-70b-instruct-awq', // This will be used for Tandem (OpenRouter uses different model)
         stream: false,
         messages: [
-          { role: 'system', content: 'You are Llama-70B' },
+          { role: 'system', content: 'You are a helpful assistant. Be concise and clear in your responses.' },
           { role: 'user', content: 'Give me the python code for solving an ML Equation' }
         ],
+        max_completion_tokens: 2000,
         temperature: 0.6,
         top_p: 0.9
       })
@@ -117,12 +118,13 @@ export async function useFallbackStreamingRoute(apiKey: string) {
         'Accept': 'text/event-stream',
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3.3-70b-instruct',
+        model: 'casperhansen/llama-3.3-70b-instruct-awq',
         stream: true,
         messages: [
-          { role: 'system', content: 'You are Llama-70B' },
+          { role: 'system', content: 'You are a helpful assistant. Be concise and clear in your responses.' },
           { role: 'user', content: 'Explain machine learning concepts' }
         ],
+        max_completion_tokens: 2000,
         temperature: 0.6,
         top_p: 0.9
       })
@@ -212,4 +214,133 @@ export async function demonstrateFallbackBehavior(apiKey: string) {
   } catch (error) {
     console.error('Both services failed:', error);
   }
+}
+
+// Example showing message accumulation in a conversation
+export async function demonstrateMessageAccumulation(apiKey: string) {
+  console.log('=== Demonstrating Message Accumulation ===');
+  
+  // Start with initial messages
+  let conversationMessages = [
+    { role: 'user' as const, content: 'Hello! What is machine learning?' }
+  ];
+  
+  console.log('Initial messages:', conversationMessages.length);
+  
+  try {
+    // First API call - system message will be automatically added
+    const firstResponse = await fetch('/api/v1/external-chat', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'casperhansen/llama-3.3-70b-instruct-awq',
+        stream: false,
+        messages: conversationMessages,
+        max_completion_tokens: 2000,
+        temperature: 0.6,
+        top_p: 0.9
+      })
+    });
+
+    const firstResult = await firstResponse.json();
+    console.log('First response from:', firstResult.processing_source);
+    
+    // Add assistant response to conversation
+    conversationMessages.push({
+      role: 'assistant' as const,
+      content: firstResult.choices[0].message.content
+    });
+    
+    console.log('Messages after first response:', conversationMessages.length);
+    
+    // Add follow-up user message
+    conversationMessages.push({
+      role: 'user' as const,
+      content: 'Please continue ahead and tell me about neural networks'
+    });
+    
+    console.log('Messages after user follow-up:', conversationMessages.length);
+    
+    // Second API call - the conversation continues with accumulated messages
+    const secondResponse = await fetch('/api/v1/external-chat', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'casperhansen/llama-3.3-70b-instruct-awq',
+        stream: false,
+        messages: conversationMessages,
+        max_completion_tokens: 2000,
+        temperature: 0.6,
+        top_p: 0.9
+      })
+    });
+
+    const secondResult = await secondResponse.json();
+    console.log('Second response from:', secondResult.processing_source);
+    
+    // Add second assistant response
+    conversationMessages.push({
+      role: 'assistant' as const,
+      content: secondResult.choices[0].message.content
+    });
+    
+    console.log('Final messages count:', conversationMessages.length);
+    console.log('System message automatically added:', conversationMessages.some(msg => msg.role === 'system'));
+    
+    return conversationMessages;
+    
+  } catch (error) {
+    console.error('Message accumulation demo failed:', error);
+    throw error;
+  }
+}
+
+// Example demonstrating static helper methods for message management
+export function demonstrateMessageHelpers() {
+  console.log('=== Message Helper Functions ===');
+  
+  // Example messages without system message
+  const messagesWithoutSystem = [
+    { role: 'user' as const, content: 'Hello!' },
+    { role: 'assistant' as const, content: 'Hi there!' },
+    { role: 'user' as const, content: 'How are you?' }
+  ];
+  
+  console.log('Original messages:', messagesWithoutSystem.length);
+  console.log('Has system message:', messagesWithoutSystem.some(msg => msg.role === 'system'));
+  
+  // Add system message automatically
+  const withSystemMessage = ExternalChatAPI.ensureSystemMessage(messagesWithoutSystem);
+  console.log('After ensuring system message:', withSystemMessage.length);
+  console.log('Now has system message:', withSystemMessage.some(msg => msg.role === 'system'));
+  
+  // Demonstrate conversation continuation
+  const existingConversation = [
+    { role: 'system' as const, content: 'You are a helpful assistant.' },
+    { role: 'user' as const, content: 'Tell me about AI' },
+    { role: 'assistant' as const, content: 'AI is...' }
+  ];
+  
+  const newMessages = [
+    { role: 'user' as const, content: 'What about machine learning?' },
+    { role: 'assistant' as const, content: 'Machine learning is...' }
+  ];
+  
+  const combinedConversation = ExternalChatAPI.addMessagesToConversation(existingConversation, newMessages);
+  
+  console.log('Existing conversation length:', existingConversation.length);
+  console.log('New messages length:', newMessages.length);
+  console.log('Combined conversation length:', combinedConversation.length);
+  console.log('System message preserved:', combinedConversation[0].role === 'system');
+  
+  return {
+    withSystemMessage,
+    combinedConversation
+  };
 }

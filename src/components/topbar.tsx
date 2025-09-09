@@ -22,6 +22,7 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
     { href: '/models', label: 'Models' },
     { href: '/keys', label: 'API Keys' },
     { href: '/credits', label: 'Credits' },
+    { href: '/metrics', label: 'Metrics' },
     { href: '/settings', label: 'Settings' }
   ];
 

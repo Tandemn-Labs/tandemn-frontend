@@ -370,7 +370,7 @@ console.log(data);`;
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium">Using API Key</p>
-                            <code className="text-xs text-black dark:text-white">
+                            <code className="text-xs text-foreground font-mono">
                               {apiKeys[0].key.substring(0, 12)}...{apiKeys[0].key.slice(-4)}
                             </code>
                           </div>
@@ -399,7 +399,7 @@ console.log(data);`;
                       <TabsContent value="curl" className="space-y-2">
                         <div className="relative">
                           <pre className="bg-muted/50 p-4 rounded-lg text-sm overflow-x-auto border">
-                            <code>{generateCurlExample(selectedModel)}</code>
+                            <code className="text-foreground font-mono">{generateCurlExample(selectedModel)}</code>
                           </pre>
                           <Button
                             size="sm"
@@ -415,7 +415,7 @@ console.log(data);`;
                       <TabsContent value="python" className="space-y-2">
                         <div className="relative">
                           <pre className="bg-muted/50 p-4 rounded-lg text-sm overflow-x-auto border">
-                            <code>{generatePythonExample(selectedModel)}</code>
+                            <code className="text-foreground font-mono">{generatePythonExample(selectedModel)}</code>
                           </pre>
                           <Button
                             size="sm"
@@ -431,7 +431,7 @@ console.log(data);`;
                       <TabsContent value="node" className="space-y-2">
                         <div className="relative">
                           <pre className="bg-muted/50 p-4 rounded-lg text-sm overflow-x-auto border">
-                            <code>{generateNodeExample(selectedModel)}</code>
+                            <code className="text-foreground font-mono">{generateNodeExample(selectedModel)}</code>
                           </pre>
                           <Button
                             size="sm"
@@ -492,8 +492,8 @@ console.log(data);`;
                 <p className="text-xs text-green-700 dark:text-green-300 mb-3">
                   Copy this key now - it won't be shown again for security reasons.
                 </p>
-                <div className="flex items-center gap-2 p-2 bg-white dark:bg-black/20 rounded border">
-                  <code className="flex-1 text-sm font-mono break-all">{generatedKey}</code>
+                <div className="flex items-center gap-2 p-2 bg-muted rounded border">
+                  <code className="flex-1 text-sm font-mono break-all text-foreground">{generatedKey}</code>
                   <Button
                     size="sm"
                     variant="outline"
@@ -525,7 +525,7 @@ console.log(data);`;
                       <div key={key.id} className="flex items-center justify-between p-2 border rounded">
                         <div>
                           <p className="text-sm font-medium">{key.name}</p>
-                          <code className="text-xs text-black dark:text-white">
+                          <code className="text-xs text-foreground font-mono">
                             {key.key.substring(0, 12)}...{key.key.slice(-4)}
                           </code>
                         </div>

@@ -60,6 +60,7 @@ export interface StreamingChatCompletionChunk {
 }
 
 const OPENROUTER_API_BASE_URL = 'https://openrouter.ai/api/v1';
+const TANDEM_API_BASE_URL = 'http://98.80.0.197:8000/v1';
 
 export class ExternalChatAPI {
   private baseUrl: string;
@@ -183,12 +184,49 @@ export class ExternalChatAPI {
       ...options,
     };
   }
+
+  // Ensure system message is present and add default if missing
+  static ensureSystemMessage(messages: ChatCompletionMessage[]): ChatCompletionMessage[] {
+    const hasSystemMessage = messages.some(msg => msg.role === 'system');
+    
+    if (!hasSystemMessage) {
+      const systemMessage: ChatCompletionMessage = {
+        role: 'system',
+        content: 'You are a helpful assistant. Be concise and clear in your responses.'
+      };
+      return [systemMessage, ...messages];
+    }
+    
+    return messages;
+  }
+
+  // Add messages to existing conversation while maintaining system message
+  static addMessagesToConversation(
+    existingMessages: ChatCompletionMessage[],
+    newMessages: ChatCompletionMessage[]
+  ): ChatCompletionMessage[] {
+    const systemMessage = existingMessages.find(msg => msg.role === 'system');
+    const nonSystemMessages = existingMessages.filter(msg => msg.role !== 'system');
+    
+    const allMessages = [...nonSystemMessages, ...newMessages];
+    
+    if (systemMessage) {
+      return [systemMessage, ...allMessages];
+    }
+    
+    return ExternalChatAPI.ensureSystemMessage(allMessages);
+  }
 }
 
 // Default instance - will be initialized with OpenRouter API key from environment
 export const externalChatAPI = new ExternalChatAPI(
   OPENROUTER_API_BASE_URL, 
   process.env.OPENROUTER_API_KEY
+);
+
+// Tandem instance - uses the new Tandem API endpoint
+export const tandemChatAPI = new ExternalChatAPI(
+  TANDEM_API_BASE_URL
 );
 
 // Helper function to convert internal message format to external format

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { externalChatAPI, convertMessages } from '@/lib/external-chat-api';
+import { externalChatAPI, tandemChatAPI, convertMessages, ExternalChatAPI } from '@/lib/external-chat-api';
 import { externalChatCompletionSchema } from '@/lib/zod-schemas';
 import { validateAPIKey, chargeForUsage, getUserCredits, calculateTokenCost } from '@/lib/credits';
 
@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
     
     try {
       const validatedRequest = externalChatCompletionSchema.parse(body);
+      
+      // Ensure system message is present
+      validatedRequest.messages = ExternalChatAPI.ensureSystemMessage(validatedRequest.messages);
       
       // Check if streaming is requested
       if (validatedRequest.stream) {
@@ -125,58 +128,137 @@ async function handleStreamingRequestWithFallback(
   }
 }
 
-// Try to use Tandem's internal chat system
+// Try to use Tandem's external API system
 async function tryTandemChat(
   validatedRequest: any,
   userId: string,
   request: NextRequest
 ): Promise<NextResponse | null> {
   try {
-    // Convert external request format to Tandem's internal format
+    // Use the new Tandem API endpoint directly
+    // Convert message roles to match Tandem API expectations (capital first letter)
+    const tandemMessages = validatedRequest.messages.map((msg: any) => ({
+      ...msg,
+      role: msg.role === 'system' ? 'System' : msg.role
+    }));
+    
     const tandemRequestBody = {
-      model: 'meta/llama-3-3-70b-0', // Map to Tandem's internal model ID
-      messages: validatedRequest.messages,
-      max_tokens: validatedRequest.max_completion_tokens || 150,
+      model: validatedRequest.model, // Use the model from request (should be 'casperhansen/llama-3.3-70b-instruct-awq')
+      messages: tandemMessages,
+      max_completion_tokens: validatedRequest.max_completion_tokens || 2000,
       temperature: validatedRequest.temperature,
       top_p: validatedRequest.top_p,
       stream: validatedRequest.stream
     };
 
-    // Get the base URL for internal API calls
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : process.env.NEXT_PUBLIC_DOMAIN 
-      ? process.env.NEXT_PUBLIC_DOMAIN 
-      : 'http://localhost:3000';
+    console.log('Making request to Tandem API:', tandemRequestBody);
 
-    // Make HTTP request to internal Tandem API (fixes Vercel serverless issue)
-    const tandemResponse = await fetch(`${baseUrl}/api/v1/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': request.headers.get('Authorization') || '',
-      },
-      body: JSON.stringify(tandemRequestBody),
-    });
-    
-    // Check if the response is successful
-    if (tandemResponse.ok) {
-      // Add a flag to indicate this came from Tandem
-      const responseData = await tandemResponse.json();
+    // Use tandemChatAPI instance to make the request
+    if (validatedRequest.stream) {
+      return handleTandemStreaming(tandemRequestBody, userId);
+    } else {
+      const tandemResponse = await tandemChatAPI.createChatCompletion(tandemRequestBody);
+      
+      // Calculate costs based on response
+      const inputTokens = tandemResponse.usage.prompt_tokens || Math.ceil(JSON.stringify(validatedRequest.messages).length / 4);
+      const outputTokens = tandemResponse.usage.completion_tokens || 50;
+      const creditCost = calculateTokenCost('casperhansen/llama-3.3-70b-instruct-awq', inputTokens, outputTokens);
+      
+      // Charge credits
+      const chargeSuccess = await chargeForUsage('casperhansen/llama-3.3-70b-instruct-awq', inputTokens, outputTokens, userId);
+      if (!chargeSuccess) {
+        console.error('Failed to charge credits for Tandem API usage');
+        return null;
+      }
+
+      const userCredits = await getUserCredits(userId);
+      
       return NextResponse.json({
-        ...responseData,
+        ...tandemResponse,
+        pricing: {
+          credits_charged: creditCost,
+          credits_remaining: Math.round((userCredits - creditCost) * 100) / 100,
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+        },
         processing_source: 'tandem',
         fallback_used: false,
       });
     }
     
-    console.log(`Tandem internal chat failed with status: ${tandemResponse.status}`);
-    return null;
-    
   } catch (error) {
-    console.error('Error calling Tandem internal chat:', error);
+    console.error('Error calling Tandem external API:', error);
     return null;
   }
+}
+
+// Handle Tandem streaming
+async function handleTandemStreaming(
+  request: any,
+  userId: string
+): Promise<NextResponse> {
+  // Create a ReadableStream for SSE
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      let totalOutputTokens = 0;
+      let estimatedInputTokens = Math.ceil(JSON.stringify(request.messages).length / 4);
+
+      try {
+        await tandemChatAPI.createStreamingChatCompletion(
+          request,
+          (chunk) => {
+            // Count output tokens (rough estimation)
+            if (chunk.choices?.[0]?.delta?.content) {
+              totalOutputTokens += Math.ceil(chunk.choices[0].delta.content.length / 4);
+            }
+            
+            // Forward chunk to client with processing source indicator
+            const enhancedChunk = {
+              ...chunk,
+              processing_source: 'tandem',
+              fallback_used: false,
+            };
+            
+            const data = `data: ${JSON.stringify(enhancedChunk)}\n\n`;
+            controller.enqueue(encoder.encode(data));
+          },
+          (error) => {
+            console.error('Tandem streaming error:', error);
+            const errorData = `data: ${JSON.stringify({ error: error.message })}\n\n`;
+            controller.enqueue(encoder.encode(errorData));
+            controller.close();
+          }
+        );
+
+        // Send completion message
+        const completionData = `data: [DONE]\n\n`;
+        controller.enqueue(encoder.encode(completionData));
+        controller.close();
+
+        // Charge credits after streaming is complete
+        const creditCost = calculateTokenCost('casperhansen/llama-3.3-70b-instruct-awq', estimatedInputTokens, totalOutputTokens);
+        await chargeForUsage('casperhansen/llama-3.3-70b-instruct-awq', estimatedInputTokens, totalOutputTokens, userId);
+        
+      } catch (error) {
+        console.error('Tandem streaming setup error:', error);
+        const errorData = `data: ${JSON.stringify({ 
+          error: 'Tandem streaming failed',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        })}\n\n`;
+        controller.enqueue(encoder.encode(errorData));
+        controller.close();
+      }
+    },
+  });
+
+  return new NextResponse(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
 }
 
 // Handle OpenRouter request
