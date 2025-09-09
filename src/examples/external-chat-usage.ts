@@ -221,7 +221,7 @@ export async function demonstrateMessageAccumulation(apiKey: string) {
   console.log('=== Demonstrating Message Accumulation ===');
   
   // Start with initial messages
-  let conversationMessages = [
+  let conversationMessages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [
     { role: 'user' as const, content: 'Hello! What is machine learning?' }
   ];
   
