@@ -104,16 +104,34 @@ export async function addTransaction(userId: string, transaction: Omit<Transacti
       ...transaction,
     };
 
-    // Keep only last 50 transactions to avoid metadata size limits
-    const updatedTransactions = [newTransaction, ...currentTransactions].slice(0, 50);
+    // Keep only last 20 transactions to avoid metadata size limits (reduced from 50)
+    const updatedTransactions = [newTransaction, ...currentTransactions].slice(0, 20);
 
     const user = await clerkClient.users.getUser(userId);
     
-    // Prepare clean metadata
+    // Check metadata size before updating
+    const currentMetadataSize = JSON.stringify(user.privateMetadata).length;
+    console.log('Current metadata size before transaction:', currentMetadataSize, 'bytes');
+    
+    // If metadata is getting large, prioritize API keys over transaction history
+    const preserveApiKeys = user.privateMetadata?.apiKeys || [];
+    
+    // Prepare clean metadata - prioritize essential data
     const cleanMetadata = {
-      ...user.privateMetadata,
-      transactions: updatedTransactions,
+      credits: user.privateMetadata?.credits || 0,
+      lastCreditUpdate: user.privateMetadata?.lastCreditUpdate,
+      apiKeys: preserveApiKeys, // Always preserve API keys
+      transactions: currentMetadataSize > 6000 ? updatedTransactions.slice(0, 10) : updatedTransactions, // Reduce further if metadata is large
     };
+    
+    const newMetadataSize = JSON.stringify(cleanMetadata).length;
+    console.log('New metadata size with transaction:', newMetadataSize, 'bytes');
+    
+    // Only update if metadata size is reasonable (under 7KB to be safe)
+    if (newMetadataSize > 7000) {
+      console.warn('⚠️ Metadata would be too large, skipping transaction history update');
+      return;
+    }
 
     await clerkClient.users.updateUser(userId, {
       privateMetadata: cleanMetadata,
@@ -315,16 +333,49 @@ export async function generateAPIKey(name: string, userId?: string): Promise<{ s
 
     // Update user metadata with new API key
     const user = await clerkClient.users.getUser(userIdToUse);
+    
+    // Log current metadata size for debugging
+    console.log('Current metadata size:', JSON.stringify(user.privateMetadata).length, 'bytes');
+    console.log('API keys count:', currentKeys.length);
+    
+    // Clean up metadata to avoid size limits (Clerk has ~8KB limit)
+    const cleanMetadata = {
+      credits: user.privateMetadata?.credits || 0,
+      lastCreditUpdate: user.privateMetadata?.lastCreditUpdate,
+      apiKeys: updatedKeys,
+      // Remove large transaction history to make room for API keys
+      transactions: undefined, // This will save significant space
+    };
+    
+    // Log new metadata size
+    console.log('New metadata size:', JSON.stringify(cleanMetadata).length, 'bytes');
+
     await clerkClient.users.updateUser(userIdToUse, {
-      privateMetadata: {
-        ...user.privateMetadata,
-        apiKeys: updatedKeys,
-      },
+      privateMetadata: cleanMetadata,
     });
 
     return { success: true, apiKey: newAPIKey, message: 'API key generated successfully' };
   } catch (error) {
     console.error('Error generating API key:', error);
+    
+    // Enhanced error logging
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+      
+      // Check for Clerk-specific errors
+      if ('clerkError' in error && error.clerkError) {
+        console.error('Clerk error details:', {
+          status: (error as any).status,
+          clerkTraceId: (error as any).clerkTraceId,
+          errors: (error as any).errors,
+        });
+      }
+    }
+    
     return { success: false, message: 'Failed to generate API key' };
   }
 }

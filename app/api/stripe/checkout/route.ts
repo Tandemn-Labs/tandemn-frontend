@@ -6,9 +6,12 @@ export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
     
+    console.log('DEBUG: Auth result:', { userId });
+    console.log('DEBUG: Request headers:', Object.fromEntries(request.headers.entries()));
+    
     if (!userId) {
       return NextResponse.json(
-        { error: 'Authentication required' },
+        { error: 'Authentication required', debug: { hasAuthHeader: !!request.headers.get('authorization'), cookieHeader: request.headers.get('cookie') ? 'present' : 'missing' } },
         { status: 401 }
       );
     }
