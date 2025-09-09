@@ -162,6 +162,13 @@ export class TandemnClient {
         }
       }
       
+      // Filter out end-of-text tokens
+      completeContent = completeContent
+        .replace(/<\|eot_id\|>/g, '')
+        .replace(/<\|end\|>/g, '')
+        .replace(/<\|endoftext\|>/g, '')
+        .trim();
+      
       // Convert to Tandemn format
       const result: TandemnInferenceResponse = {
         request_id: `tandemn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,

@@ -213,6 +213,14 @@ async function handleTandemStreaming(
               totalOutputTokens += Math.ceil(chunk.choices[0].delta.content.length / 4);
             }
             
+            // Filter out end-of-text tokens from streaming content
+            if (chunk.choices?.[0]?.delta?.content) {
+              chunk.choices[0].delta.content = chunk.choices[0].delta.content
+                .replace(/<\|eot_id\|>/g, '')
+                .replace(/<\|end\|>/g, '')
+                .replace(/<\|endoftext\|>/g, '');
+            }
+            
             // Forward chunk to client with processing source indicator
             const enhancedChunk = {
               ...chunk,

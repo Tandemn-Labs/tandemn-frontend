@@ -94,7 +94,18 @@ export class ExternalChatAPI {
       throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorData.error || ''}`);
     }
 
-    return response.json();
+    const result = await response.json();
+    
+    // Filter out end-of-text tokens from non-streaming responses
+    if (result.choices?.[0]?.message?.content) {
+      result.choices[0].message.content = result.choices[0].message.content
+        .replace(/<\|eot_id\|>/g, '')
+        .replace(/<\|end\|>/g, '')
+        .replace(/<\|endoftext\|>/g, '')
+        .trim();
+    }
+    
+    return result;
   }
 
   async createStreamingChatCompletion(
@@ -155,6 +166,15 @@ export class ExternalChatAPI {
           try {
             const jsonData = trimmedLine.slice(6); // Remove 'data: ' prefix
             const chunk = JSON.parse(jsonData) as StreamingChatCompletionChunk;
+            
+            // Filter out end-of-text tokens from streaming content
+            if (chunk.choices?.[0]?.delta?.content) {
+              chunk.choices[0].delta.content = chunk.choices[0].delta.content
+                .replace(/<\|eot_id\|>/g, '')
+                .replace(/<\|end\|>/g, '')
+                .replace(/<\|endoftext\|>/g, '');
+            }
+            
             onChunk(chunk);
           } catch (parseError) {
             console.warn('Failed to parse SSE chunk:', trimmedLine, parseError);
