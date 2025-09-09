@@ -109,15 +109,43 @@ export async function POST(request: NextRequest) {
       console.error('Model attempted:', model.id);
       console.error('Conversation length:', messages.length, 'messages');
       
-      // TESTING: No fallback to OpenRouter - fail fast to debug Tandem issues
-      return NextResponse.json(
-        { 
-          error: `Tandem backend failed: ${tandemnError instanceof Error ? tandemnError.message : 'Unknown error'}. Please check if Tandem backend is running at ${process.env.TANDEMN_BACKEND_URL}`,
-          backend: 'tandemn',
-          endpoint: `${process.env.TANDEMN_BACKEND_URL}/v1/chat/completions`
-        },
-        { status: 503 } // Service Unavailable
-      );
+      // Fallback to OpenRouter when Tandem backend fails
+      console.log('🔀 API: Falling back to OpenRouter due to Tandem failure');
+      try {
+        const openRouterModel = mapModelToOpenRouter(model.id);
+        console.log('🔀 API: Using OpenRouter model:', openRouterModel);
+        
+        const openRouterRequest = {
+          model: openRouterModel,
+          messages: messages,
+          max_tokens: 2000,
+          temperature: 0.7,
+        };
+        
+        const openRouterResponse = await openRouterClient.chatWithTimeout(openRouterRequest, 30000);
+        
+        if (openRouterResponse && openRouterResponse.choices && openRouterResponse.choices[0]) {
+          response = openRouterResponse.choices[0].message.content || '';
+          outputTokens = openRouterResponse.usage?.completion_tokens || Math.ceil(response.length / 4);
+          backendUsed = 'openrouter';
+          console.log('✅ API: OpenRouter fallback successful');
+        } else {
+          throw new Error('OpenRouter returned empty response');
+        }
+      } catch (openRouterError) {
+        console.error('❌ API: Both Tandem and OpenRouter failed');
+        console.error('Tandem error:', tandemnError);
+        console.error('OpenRouter error:', openRouterError);
+        
+        return NextResponse.json(
+          { 
+            error: `Both Tandem and OpenRouter backends failed. Tandem: ${tandemnError instanceof Error ? tandemnError.message : 'Unknown error'}. OpenRouter: ${openRouterError instanceof Error ? openRouterError.message : 'Unknown error'}`,
+            backends_attempted: ['tandemn', 'openrouter'],
+            tandem_endpoint: `${process.env.TANDEMN_BACKEND_URL}/v1/chat/completions`
+          },
+          { status: 503 } // Service Unavailable
+        );
+      }
     }
     
     // Calculate tokens and cost
