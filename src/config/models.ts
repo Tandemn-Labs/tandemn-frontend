@@ -24,7 +24,7 @@ export const TANDEMN_MODELS: TandemnModel[] = [
     output_price_per_1m: 0.80,  // $0.80 per 1M output tokens
     capabilities: ["text", "reasoning", "coding", "fast-inference"],
     max_tokens: 4096,
-    is_available: true
+    is_available: false  // Model not deployed on backend yet
   }
 ];
 
