@@ -313,7 +313,6 @@ export function demonstrateMessageHelpers() {
   ];
   
   console.log('Original messages:', messagesWithoutSystem.length);
-  console.log('Has system message:', messagesWithoutSystem.some(msg => msg.role === 'system'));
   
   // Add system message automatically
   const withSystemMessage = ExternalChatAPI.ensureSystemMessage(messagesWithoutSystem);
