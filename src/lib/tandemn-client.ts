@@ -113,6 +113,7 @@ export class TandemnClient {
           },
         ],
         stream: true, // Use streaming like the working curl
+        max_completion_tokens: request.max_tokens || 2000, // Use the max_tokens from request, default to 2000
         temperature: 0.6,
         top_p: 0.9
       };
