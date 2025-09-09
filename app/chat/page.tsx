@@ -78,15 +78,15 @@ function ChatPageContent() {
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const response = await fetch('/api/models?limit=5&sort=popularity');
+        const response = await fetch('/api/v1/models');
         const data = await response.json();
-        setModels(data.items || []);
-        if (data.items?.length > 0) {
+        setModels(data.data || []);
+        if (data.data?.length > 0) {
           // Prefer DeepSeek as the default model, fall back to first available
-          const deepseekModel = data.items.find((model: Model) => 
+          const deepseekModel = data.data.find((model: Model) => 
             model.id.includes('deepseek') || model.name.toLowerCase().includes('deepseek')
           );
-          setCurrentModel(deepseekModel || data.items[0]);
+          setCurrentModel(deepseekModel || data.data[0]);
         }
       } catch (error) {
         console.error('Failed to fetch models:', error);
@@ -377,10 +377,10 @@ function ChatPageContent() {
                               <span className="font-medium">{currentModel.name}</span>
                               <div className="flex space-x-1">
                                 <Badge variant="secondary" className="text-xs">
-                                  In: ${currentModel.promptPrice.toFixed(3)}
+                                  In: ${(currentModel as any).input_price_per_1m?.toFixed(3) || currentModel.promptPrice?.toFixed(3)}
                                 </Badge>
                                 <Badge variant="outline" className="text-xs">
-                                  Out: ${currentModel.completionPrice.toFixed(3)}
+                                  Out: ${(currentModel as any).output_price_per_1m?.toFixed(3) || currentModel.completionPrice?.toFixed(3)}
                                 </Badge>
                               </div>
                             </div>
@@ -397,10 +397,10 @@ function ChatPageContent() {
                                 <span className="font-medium">{model.name}</span>
                                 <div className="flex space-x-1">
                                   <Badge variant="secondary" className="text-xs">
-                                    In: ${model.promptPrice.toFixed(3)}
+                                    In: ${(model as any).input_price_per_1m?.toFixed(3) || model.promptPrice?.toFixed(3)}
                                   </Badge>
                                   <Badge variant="outline" className="text-xs">
-                                    Out: ${model.completionPrice.toFixed(3)}
+                                    Out: ${(model as any).output_price_per_1m?.toFixed(3) || model.completionPrice?.toFixed(3)}
                                   </Badge>
                                 </div>
                               </div>
