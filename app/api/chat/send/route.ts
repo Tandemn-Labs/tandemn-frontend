@@ -85,8 +85,12 @@ export async function POST(request: NextRequest) {
     let totalCost = 0;
     let backendUsed = 'mock';
     
+    // Create abort signal that can be passed to the tandem client
+    const streamController = new AbortController();
+    
     const stream = new ReadableStream({
       async start(controller) {
+        
         try {
           // Try tandemn backend first with real-time streaming
           const tandemnRequest = {
@@ -110,9 +114,21 @@ export async function POST(request: NextRequest) {
               };
               console.log('📤 API: Streaming chunk from tandem:', content.slice(0, 50) + '...');
               const chunk = `event: chunk\ndata: ${JSON.stringify(chunkData)}\n\n`;
-              controller.enqueue(encoder.encode(chunk));
+              
+              try {
+                controller.enqueue(encoder.encode(chunk));
+              } catch (error) {
+                // Controller might be closed if client aborted
+                if (error instanceof TypeError && error.message.includes('Controller is already closed')) {
+                  console.log('🛑 API: Client disconnected, stopping tandem stream');
+                  streamController.abort(); // Signal tandem backend to stop
+                  return;
+                }
+                throw error;
+              }
             },
-            60000 // 60 second timeout
+            60000, // 60 second timeout
+            streamController.signal // Pass abort signal to tandem client
           );
           
           if (tandemnResponse && tandemnResponse.result) {
@@ -314,6 +330,15 @@ export async function POST(request: NextRequest) {
             controller.close();
             return;
           }
+        }
+      },
+      
+      cancel() {
+        console.log('🛑 API: ReadableStream cancelled by client');
+        // This is called when the client aborts the request
+        // We should signal any ongoing operations to stop
+        if (streamController) {
+          streamController.abort();
         }
       }
     });

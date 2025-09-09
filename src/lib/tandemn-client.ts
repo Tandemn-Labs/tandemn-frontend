@@ -96,12 +96,21 @@ export class TandemnClient {
   async inferStreamingWithTimeout(
     request: TandemnInferenceRequest,
     onChunk: (content: string) => void,
-    timeoutMs: number = 60000
+    timeoutMs: number = 60000,
+    externalSignal?: AbortSignal // Accept external abort signal
   ): Promise<TandemnInferenceResponse> {
     console.log('🔧 TANDEMN: Calling real Tandem backend for streaming model:', request.model_name);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    // Listen to external abort signal (from frontend stop button)
+    if (externalSignal) {
+      externalSignal.addEventListener('abort', () => {
+        console.log('🛑 TANDEMN: External abort signal received');
+        controller.abort();
+      });
+    }
 
     try {
       // Convert Tandemn request to exact format that works with Tandem API
@@ -214,7 +223,13 @@ export class TandemnClient {
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Tandem backend request timed out');
+        if (externalSignal?.aborted) {
+          console.log('🛑 TANDEMN: Request cancelled by user');
+          throw new Error('Request cancelled by user');
+        } else {
+          console.log('⏱️ TANDEMN: Request timed out');
+          throw new Error('Tandem backend request timed out');
+        }
       }
       console.error('❌ TANDEMN: Real backend failed:', error);
       throw error;

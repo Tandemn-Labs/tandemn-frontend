@@ -149,10 +149,16 @@ function ChatPageContent() {
 
   const stopStreaming = () => {
     if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-      setIsStreaming(false);
-      setShowGPUUtilization(false);
+      try {
+        abortControllerRef.current.abort();
+        console.log('🛑 Streaming stopped by user');
+      } catch (error) {
+        console.log('⚠️ Error aborting request:', error);
+      } finally {
+        abortControllerRef.current = null;
+        setIsStreaming(false);
+        setShowGPUUtilization(false);
+      }
     }
   };
 
@@ -263,11 +269,12 @@ function ChatPageContent() {
         }
       }
     } catch (error) {
-      console.error('Failed to send message:', error);
-      
-      // Check if the error is due to abort
+      // Check if the error is due to abort first
       if (error instanceof Error && error.name === 'AbortError') {
-        console.log('Request was cancelled by user');
+        console.log('🛑 Request was cancelled by user');
+        // Don't log this as an error since it's intentional
+      } else {
+        console.error('❌ Failed to send message:', error);
       }
       
       setIsStreaming(false);
