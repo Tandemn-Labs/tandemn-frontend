@@ -2,8 +2,8 @@ import { createClerkClient } from '@clerk/nextjs/server';
 import { auth } from '@clerk/nextjs/server';
 
 // Import shared types and constants
-import { CREDIT_PACKAGES, formatCurrency, formatCredits, type Transaction, type APIKey } from './credits-client';
-export { CREDIT_PACKAGES, formatCurrency, formatCredits } from './credits-client';
+import { CREDIT_PACKAGES, type Transaction, type APIKey } from './credits-client';
+export { CREDIT_PACKAGES } from './credits-client';
 export type { Transaction, APIKey } from './credits-client';
 
 const clerkClient = createClerkClient({
@@ -99,7 +99,7 @@ export async function addTransaction(userId: string, transaction: Omit<Transacti
   try {
     const currentTransactions = await getTransactionHistory(userId);
     const newTransaction: Transaction = {
-      id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `txn_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       createdAt: new Date().toISOString(),
       ...transaction,
     };
@@ -310,8 +310,8 @@ export async function generateAPIKey(name: string, userId?: string): Promise<{ s
     }
 
     // Generate a secure API key
-    const keyId = `key_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const apiKeyValue = `gk-${userIdToUse.slice(-8)}_${Math.random().toString(36).substr(2, 32)}`;
+    const keyId = `key_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    const apiKeyValue = `gk-${userIdToUse.slice(-8)}_${Math.random().toString(36).substring(2, 34)}`;
 
     const newAPIKey: APIKey = {
       id: keyId,
