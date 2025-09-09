@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useSearchParams } from 'next/navigation';
-import { Plus, MessageSquare, Settings, Send, Paperclip, Globe, Menu, X, Zap, ChevronDown, Check } from 'lucide-react';
+import { Plus, MessageSquare, Settings, Send, Paperclip, Globe, Menu, X, Zap, ChevronDown, Check, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -57,6 +57,8 @@ function ChatPageContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userCredits, setUserCredits] = useState<number>(0);
 
+  // AbortController ref for cancelling streaming requests
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const activeRoom = rooms.find(room => room.id === activeRoomId);
   const roomMessages = activeRoomId ? messages[activeRoomId] || [] : [];
@@ -82,11 +84,12 @@ function ChatPageContent() {
         const data = await response.json();
         setModels(data.items || []);
         if (data.items?.length > 0) {
-          // Prefer DeepSeek as the default model, fall back to first available
-          const deepseekModel = data.items.find((model: Model) => 
-            model.id.includes('deepseek') || model.name.toLowerCase().includes('deepseek')
+          // Prefer Llama 3.3 70B Instruct (AWQ) as the default model since it works with tandem backend
+          const llamaModel = data.items.find((model: Model) => 
+            model.id === 'casperhansen/llama-3.3-70b-instruct-awq' || 
+            model.name.toLowerCase().includes('llama 3.3 70b instruct (awq)')
           );
-          setCurrentModel(deepseekModel || data.items[0]);
+          setCurrentModel(llamaModel || data.items[0]);
         }
       } catch (error) {
         console.error('Failed to fetch models:', error);
@@ -144,6 +147,15 @@ function ChatPageContent() {
     }
   };
 
+  const stopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsStreaming(false);
+      setShowGPUUtilization(false);
+    }
+  };
+
   const sendMessage = async (content: string = inputMessage) => {
     if (!content.trim() || !activeRoomId || !currentModel || isStreaming) return;
 
@@ -159,6 +171,10 @@ function ChatPageContent() {
     setInputMessage('');
     setIsStreaming(true);
     setShowGPUUtilization(true);
+
+    // Create new AbortController for this request
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       // Build conversation history including the new user message
@@ -178,6 +194,7 @@ function ChatPageContent() {
           roomId: activeRoomId,
           messages: conversationHistory,
         }),
+        signal: controller.signal, // Add abort signal
       });
 
       if (!response.ok) {
@@ -235,6 +252,8 @@ function ChatPageContent() {
                 setTimeout(() => setShowGPUUtilization(false), 3000); // Hide after 3 seconds
                 // Refresh user credits after successful API call
                 fetchUserCredits();
+                // Clean up abort controller
+                abortControllerRef.current = null;
                 return;
               }
             } catch (e) {
@@ -245,8 +264,15 @@ function ChatPageContent() {
       }
     } catch (error) {
       console.error('Failed to send message:', error);
+      
+      // Check if the error is due to abort
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Request was cancelled by user');
+      }
+      
       setIsStreaming(false);
       setShowGPUUtilization(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -520,14 +546,26 @@ function ChatPageContent() {
                       disabled={isStreaming}
                       className="min-h-[40px] md:min-h-[40px] flex-1"
                     />
-                    <Button 
-                      type="submit" 
-                      disabled={!inputMessage.trim() || isStreaming}
-                      size="icon"
-                      className="h-10 w-10 md:h-9 md:w-9"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
+                    {isStreaming ? (
+                      <Button 
+                        type="button" 
+                        onClick={stopStreaming}
+                        size="icon"
+                        variant="destructive"
+                        className="h-10 w-10 md:h-9 md:w-9"
+                      >
+                        <Square className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button 
+                        type="submit" 
+                        disabled={!inputMessage.trim()}
+                        size="icon"
+                        className="h-10 w-10 md:h-9 md:w-9"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </form>

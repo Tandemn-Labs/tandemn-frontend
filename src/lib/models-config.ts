@@ -87,7 +87,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     modalities: ['text'],
     description: 'Specialized coding model with 33B parameters, optimized for programming tasks and code generation.',
     badges: ['Tandem', 'Coding', 'Specialized'],
-    openRouterModelId: 'deepseek-ai/deepseek-coder-33b-instruct',
+    openRouterModelId: 'deepseek/deepseek-chat-v3.1', // Use available DeepSeek model
   },
   {
     id: 'microsoft/wizardlm-2-8x22b',
