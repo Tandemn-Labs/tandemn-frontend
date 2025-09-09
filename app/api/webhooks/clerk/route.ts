@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       // Give welcome credits to new user
       await giveWelcomeCredits(userId);
       
-      console.log(`Welcome credits given to new user: ${userId}`);
+      console.log(`$20 welcome credits given to new user: ${userId}`);
     }
 
     return NextResponse.json({ received: true });

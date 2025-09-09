@@ -284,7 +284,7 @@ export async function giveWelcomeCredits(userId: string): Promise<void> {
     
     // Only give welcome credits if user has no credits
     if (currentCredits === 0) {
-      const welcomeCredits = 5.00; // $5 welcome credits
+      const welcomeCredits = 20.00; // $20 welcome credits
       await addCredits(userId, welcomeCredits);
       
       await addTransaction(userId, {

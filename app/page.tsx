@@ -9,5 +9,9 @@ export default async function HomePage() {
     redirect('/chat');
   }
   
-  return <SignIn />;
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <SignIn />
+    </div>
+  );
 }
