@@ -242,12 +242,26 @@ export async function POST(request: NextRequest) {
             return;
           }
         } catch (tandemnError) {
+          // Check if this is a user cancellation - if so, don't fallback to OpenRouter
+          if (tandemnError instanceof Error && tandemnError.message === 'Request cancelled by user') {
+            console.log('🛑 API: Request cancelled by user, not falling back to OpenRouter');
+            // Just close the stream cleanly without fallback
+            const cancelledChunk = `event: chunk\ndata: ${JSON.stringify({ 
+              done: true, 
+              backend: 'tandemn',
+              cancelled: true 
+            })}\n\n`;
+            controller.enqueue(encoder.encode(cancelledChunk));
+            controller.close();
+            return;
+          }
+          
           console.error('❌ TANDEMN BACKEND FAILED');
           console.error('Error details:', tandemnError);
           console.error('Model attempted:', model.id);
           console.error('Conversation length:', messages.length, 'messages');
           
-          // Fallback to OpenRouter when Tandem backend fails
+          // Fallback to OpenRouter when Tandem backend fails (but not when user cancels)
           console.log('🔀 API: Falling back to OpenRouter due to Tandem failure');
           try {
             const openRouterModel = mapModelToOpenRouter(model.id);
@@ -273,39 +287,49 @@ export async function POST(request: NextRequest) {
               let currentIndex = 0;
               
               const sendFallbackChunk = async () => {
-                if (currentIndex >= words.length) {
-                  // Send final chunk for OpenRouter fallback
-                  const finalChunkData = { 
-                    done: true,
+                // Check if controller is still open
+                try {
+                  if (currentIndex >= words.length) {
+                    // Send final chunk for OpenRouter fallback
+                    const finalChunkData = { 
+                      done: true,
+                      backend: backendUsed
+                    };
+                    console.log('📤 API: Sending final fallback chunk with backend:', backendUsed);
+                    const finalChunk = `event: chunk\ndata: ${JSON.stringify(finalChunkData)}\n\n`;
+                    controller.enqueue(encoder.encode(finalChunk));
+                    controller.close();
+                    return;
+                  }
+                  
+                  // Send word(s) - sometimes multiple words at once for variety
+                  const wordsToSend = Math.random() > 0.7 ? 2 : 1;
+                  const textChunk = words
+                    .slice(currentIndex, currentIndex + wordsToSend)
+                    .join(' ') + (currentIndex + wordsToSend < words.length ? ' ' : '');
+                  
+                  const chunkData = { 
+                    text: textChunk, 
+                    done: false,
                     backend: backendUsed
                   };
-                  console.log('📤 API: Sending final fallback chunk with backend:', backendUsed);
-                  const finalChunk = `event: chunk\ndata: ${JSON.stringify(finalChunkData)}\n\n`;
-                  controller.enqueue(encoder.encode(finalChunk));
-                  controller.close();
-                  return;
+                  console.log('📤 API: Sending fallback chunk with backend:', backendUsed);
+                  const chunk = `event: chunk\ndata: ${JSON.stringify(chunkData)}\n\n`;
+                  
+                  controller.enqueue(encoder.encode(chunk));
+                  currentIndex += wordsToSend;
+                  
+                  // Use model's latency to pace the response
+                  const delay = Math.max(50, model.latencyMs / words.length);
+                  setTimeout(sendFallbackChunk, delay);
+                } catch (error) {
+                  // Controller is closed - stop sending chunks
+                  if (error instanceof TypeError && error.message.includes('Controller is already closed')) {
+                    console.log('🛑 API: OpenRouter fallback stopped - client disconnected');
+                    return;
+                  }
+                  throw error;
                 }
-                
-                // Send word(s) - sometimes multiple words at once for variety
-                const wordsToSend = Math.random() > 0.7 ? 2 : 1;
-                const textChunk = words
-                  .slice(currentIndex, currentIndex + wordsToSend)
-                  .join(' ') + (currentIndex + wordsToSend < words.length ? ' ' : '');
-                
-                const chunkData = { 
-                  text: textChunk, 
-                  done: false,
-                  backend: backendUsed
-                };
-                console.log('📤 API: Sending fallback chunk with backend:', backendUsed);
-                const chunk = `event: chunk\ndata: ${JSON.stringify(chunkData)}\n\n`;
-                
-                controller.enqueue(encoder.encode(chunk));
-                currentIndex += wordsToSend;
-                
-                // Use model's latency to pace the response
-                const delay = Math.max(50, model.latencyMs / words.length);
-                setTimeout(sendFallbackChunk, delay);
               };
               
               sendFallbackChunk();

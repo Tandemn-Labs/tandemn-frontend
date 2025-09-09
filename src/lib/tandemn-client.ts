@@ -164,6 +164,12 @@ export class TandemnClient {
         let buffer = '';
         
         while (true) {
+          // Check if abort was signaled
+          if (controller.signal.aborted || externalSignal?.aborted) {
+            console.log('🛑 TANDEMN: Abort signal detected, stopping stream reading');
+            break;
+          }
+          
           const { done, value } = await reader.read();
           
           if (done) break;
@@ -175,6 +181,12 @@ export class TandemnClient {
           buffer = lines.pop() || ''; // Keep incomplete line in buffer
           
           for (const line of lines) {
+            // Check for abort signal again before processing each line
+            if (controller.signal.aborted || externalSignal?.aborted) {
+              console.log('🛑 TANDEMN: Abort signal detected during line processing, stopping');
+              break;
+            }
+            
             const trimmedLine = line.trim();
             
             if (trimmedLine === '') continue;
@@ -203,6 +215,11 @@ export class TandemnClient {
             } catch (parseError) {
               console.warn('Failed to parse SSE chunk:', trimmedLine);
             }
+          }
+          
+          // Break out of outer loop if abort detected during inner loop
+          if (controller.signal.aborted || externalSignal?.aborted) {
+            break;
           }
         }
       } finally {
