@@ -18,12 +18,24 @@ export async function createCheckoutSession({
   packageId,
   userId,
   userEmail,
+  customAmount,
+  customPackage,
 }: {
   packageId: string;
   userId: string;
   userEmail: string;
+  customAmount?: number;
+  customPackage?: {
+    id: string;
+    name: string;
+    credits: number;
+    price: number;
+    currency: string;
+    description: string;
+  };
 }) {
-  const creditPackage = STRIPE_CREDIT_PACKAGES.find(pkg => pkg.id === packageId);
+  // Use custom package if provided, otherwise find from predefined packages
+  const creditPackage = customPackage || STRIPE_CREDIT_PACKAGES.find(pkg => pkg.id === packageId);
   
   if (!creditPackage) {
     throw new Error(`Invalid credit package: ${packageId}`);

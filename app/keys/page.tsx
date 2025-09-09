@@ -230,18 +230,6 @@ export default function APIKeysPage() {
   }'`}
             </pre>
           </div>
-          <div>
-            <h4 className="font-semibold mb-2">Batch Request (2x tokens):</h4>
-            <pre className="bg-muted/50 p-3 rounded text-sm overflow-x-auto border border-border text-foreground">
-{`curl -X POST https://yourdomain.com/api/v1/chat?batch=1 \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "model": "groq/gemma-groq-416",
-    "messages": [{"role": "user", "content": "Process this batch request"}]
-  }'`}
-            </pre>
-          </div>
         </CardContent>
       </Card>
 

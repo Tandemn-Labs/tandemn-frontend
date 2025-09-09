@@ -19,7 +19,7 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
 
   const navItems = [
     { href: '/chat', label: 'Chat' },
-    { href: '/rankings', label: 'Rankings' },
+    { href: '/models', label: 'Models' },
     { href: '/keys', label: 'API Keys' },
     { href: '/credits', label: 'Credits' },
     { href: '/settings', label: 'Settings' }

@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { packageId } = body;
+    const { packageId, customAmount, customPackage } = body;
 
     if (!packageId) {
       return NextResponse.json(
@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
       packageId,
       userId,
       userEmail,
+      customAmount,
+      customPackage,
     });
 
     return NextResponse.json({
