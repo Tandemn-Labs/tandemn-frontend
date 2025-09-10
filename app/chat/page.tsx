@@ -505,9 +505,10 @@ function ChatPageContent() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button variant="ghost" size="sm">
+                  {/* Settings button - commented out as requested */}
+                  {/* <Button variant="ghost" size="sm">
                     <Settings className="h-4 w-4" />
-                  </Button>
+                  </Button> */}
                 </div>
               </div>
 
