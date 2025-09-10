@@ -41,6 +41,7 @@ export default function RootLayout({
           unsafe_disableDevelopmentModeWarnings: true
         }
       }}
+      afterSignOutUrl="/sign-in"
     >
       <html lang="en">
         <body className={inter.className}>

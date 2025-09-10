@@ -167,7 +167,7 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
             </div> */}
 
             {/* Mobile Navigation */}
-            <nav className="p-4 space-y-1">
+            <nav className="px-4 pt-8 pb-4 space-y-1">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
