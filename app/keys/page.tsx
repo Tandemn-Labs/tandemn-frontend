@@ -212,7 +212,7 @@ export default function APIKeysPage() {
         </Card>
       )}
 
-      {/* Usage Instructions */}
+      {/* Usage Instructions
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Usage</CardTitle>
@@ -231,7 +231,7 @@ export default function APIKeysPage() {
             </pre>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* API Keys List */}
       <Card>

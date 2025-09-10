@@ -537,14 +537,14 @@ function ChatPageContent() {
 
               <form onSubmit={handleSubmit} className="flex flex-col md:flex-row md:items-end space-y-2 md:space-y-0 md:space-x-2">
                 <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
+                  {/* <div className="flex items-center space-x-2 mb-2">
                     <Button variant="ghost" size="sm">
                       <Paperclip className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="sm">
                       <Globe className="h-4 w-4" />
                     </Button>
-                  </div>
+                  </div> */}
                   <div className="flex space-x-2">
                     <Input
                       value={inputMessage}

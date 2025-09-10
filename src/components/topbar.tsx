@@ -29,15 +29,15 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-border/50 glass-card">
-        <div className="container flex h-14 items-center">
+        <div className="container flex h-14 items-center justify-center">
           {/* Logo */}
-          <Link href="/" className="mr-4 flex items-center space-x-3 group">
-            <img src="/tandemn-logo-circle.svg" alt="Tandemn" className="h-8 w-8 gentle-float" />
+          <Link href="/" className="flex items-center space-x-3 group">
+            <img src="/cute-logo-1.png" alt="Tandemn" className="h-8 w-8 gentle-float" />
             <span className="font-bold text-lg gradient-text">Tandemn</span>
           </Link>
 
           {/* Search - Hidden on mobile */}
-          <div className="flex flex-1 items-center space-x-2 hidden md:flex">
+          {/* <div className="flex flex-1 items-center space-x-2 hidden md:flex">
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -46,10 +46,10 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
                 onFocus={onSearchFocus}
               />
             </div>
-          </div>
+          </div> */}
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-1 ml-6">
+          <nav className="hidden md:flex items-center space-x-1 ml-8">
             {navItems.map((item) => (
               <Link
                 key={item.href}
@@ -65,8 +65,8 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
             ))}
           </nav>
 
-          {/* User Menu - Desktop */}
-          <div className="ml-6 hidden md:block">
+          {/* User Menu - Desktop (Positioned absolutely to avoid affecting centering) */}
+          <div className="absolute right-4 hidden md:block">
             {isSignedIn ? (
               <UserButton 
                 appearance={{
@@ -85,7 +85,7 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="flex items-center space-x-2 md:hidden ml-auto">
+          <div className="absolute right-4 flex items-center space-x-2 md:hidden">
             {isSignedIn && (
               <UserButton 
                 appearance={{
@@ -117,7 +117,7 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
           <div className="fixed inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
           <div className="relative bg-background border-b shadow-lg">
             {/* Mobile Search */}
-            <div className="p-4 border-b">
+            {/* <div className="p-4 border-b">
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -129,7 +129,7 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
                   }}
                 />
               </div>
-            </div>
+            </div> */}
 
             {/* Mobile Navigation */}
             <nav className="p-4 space-y-1">

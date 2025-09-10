@@ -192,7 +192,7 @@ console.log(data);`;
     <div className="container max-w-7xl mx-auto py-8 px-4">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Models</h1>
-        <p className="text-black dark:text-white">
+        <p className="text-white dark:text-white">
           Choose from our available models and get started with API integration
         </p>
       </div>
@@ -228,7 +228,7 @@ console.log(data);`;
                         {model.provider}
                       </Badge>
                     </div>
-                    <p className="text-xs text-black dark:text-white line-clamp-2">
+                    <p className="text-xs text-white dark:text-white line-clamp-2">
                       {model.description}
                     </p>
                     <div className="flex items-center justify-between text-xs">
@@ -266,7 +266,7 @@ console.log(data);`;
                         <Zap className="h-5 w-5" />
                         {selectedModel.name}
                       </CardTitle>
-                      <CardDescription className="text-black dark:text-white">{selectedModel.description}</CardDescription>
+                      <CardDescription className="text-white dark:text-white">{selectedModel.description}</CardDescription>
                     </div>
                     <Badge variant="secondary">{selectedModel.provider}</Badge>
                   </div>
