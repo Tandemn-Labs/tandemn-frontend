@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
                 throw error;
               }
             },
-            60000, // 60 second timeout
+            600000, // 10 minute timeout
             streamController.signal // Pass abort signal to tandem client
           );
           

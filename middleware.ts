@@ -30,6 +30,7 @@ function checkRateLimit(key: string, limit: number = 60, windowMs: number = 6000
 const isProtectedRoute = createRouteMatcher([
   '/chat(.*)',
   '/credits(.*)',
+  '/metrics(.*)',
   // '/settings(.*)', // Commented out as settings page is disabled
   '/keys(.*)'
 ])

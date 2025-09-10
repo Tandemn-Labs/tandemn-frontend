@@ -26,14 +26,13 @@ import {
 import { useRoomsStore } from '@/store/rooms';
 import { ChatRoom, Message, Model } from '@/mock/types';
 import { GPUUtilization } from '@/components/gpu-utilization';
-import { BackendIndicator } from '@/components/backend-indicator';
 import { TandemnHealth } from '@/components/tandemn-health';
-import { FallbackNotification } from '@/components/fallback-notification';
 
 function ChatPageContent() {
   const { user, isSignedIn } = useUser();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q');
+  const initialModelId = searchParams.get('model');
   
   const {
     rooms,
@@ -62,7 +61,6 @@ function ChatPageContent() {
   const [inputMessage, setInputMessage] = useState(initialQuery || '');
   const [isStreaming, setIsStreaming] = useState(false);
   const [showGPUUtilization, setShowGPUUtilization] = useState(false);
-  const [lastBackendUsed, setLastBackendUsed] = useState<'tandemn' | 'openrouter' | 'mock'>('tandemn');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userCredits, setUserCredits] = useState<number>(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -96,7 +94,16 @@ function ChatPageContent() {
         const data = await response.json();
         setModels(data.items || []);
         if (data.items?.length > 0) {
-          // Prefer Llama 3.3 70B Instruct (AWQ) as the default model since it works with tandem backend
+          // If there's an initial model ID from URL, use that
+          if (initialModelId) {
+            const initialModel = data.items.find((model: Model) => model.id === initialModelId);
+            if (initialModel) {
+              setCurrentModel(initialModel);
+              return;
+            }
+          }
+          
+          // Otherwise, prefer Llama 3.3 70B Instruct (AWQ) as the default model since it works with tandem backend
           const llamaModel = data.items.find((model: Model) => 
             model.id === 'casperhansen/llama-3.3-70b-instruct-awq' || 
             model.name.toLowerCase().includes('llama 3.3 70b instruct (awq)')
@@ -109,7 +116,7 @@ function ChatPageContent() {
     };
     fetchModels();
     fetchUserCredits();
-  }, []);
+  }, [initialModelId]);
 
   // Fetch user rooms on mount
   useEffect(() => {
@@ -141,7 +148,7 @@ function ChatPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: title || `Chat with ${currentModel.name}`,
+          title: title || `Playground with ${currentModel.name}`,
           modelId: currentModel.id,
         }),
       });
@@ -262,7 +269,6 @@ function ChatPageContent() {
       if (!reader) throw new Error('No response stream');
 
       let assistantContent = '';
-      let backendUsed: 'tandemn' | 'openrouter' | 'mock' = 'mock';
       const assistantMessageId = `msg_${Date.now()}_assistant`;
       const assistantMessage: Message = {
         id: assistantMessageId,
@@ -290,12 +296,6 @@ function ChatPageContent() {
                 assistantContent += data.text;
                 // Update the existing message using the new updateMessage method
                 updateMessage(activeRoomId, assistantMessageId, { content: assistantContent });
-              }
-              if (data.backend) {
-                backendUsed = data.backend;
-                setLastBackendUsed(data.backend);
-                // Update the message with backend information
-                updateMessage(activeRoomId, assistantMessageId, { backend: data.backend });
               }
               if (data.done) {
                 setIsStreaming(false);
@@ -345,9 +345,9 @@ function ChatPageContent() {
       <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
         <div className="text-center max-w-md mx-auto p-8">
           <MessageSquare className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-          <h2 className="text-2xl font-semibold mb-4">Sign in to Chat</h2>
+          <h2 className="text-2xl font-semibold mb-4">Sign in to Playground</h2>
           <p className="text-muted-foreground mb-6">
-            Please sign in to start chatting with AI models and access your conversation history.
+            Please sign in to start experimenting with AI models and access your conversation history.
           </p>
           <Button asChild className="w-full">
             <a href="/sign-in">
@@ -388,7 +388,7 @@ function ChatPageContent() {
             disabled={!currentModel}
           >
             <Plus className="h-4 w-4 mr-2" />
-            New Chat
+            New Conversation
           </Button>
         </div>
         
@@ -540,14 +540,6 @@ function ChatPageContent() {
                           <span className="animate-pulse">▊</span>
                         )}
                       </p>
-                      {message.role === 'assistant' && message.backend && (
-                        <div className="mt-2 flex justify-end">
-                          <BackendIndicator 
-                            backend={message.backend as 'tandemn' | 'openrouter' | 'mock'} 
-                            className="text-xs"
-                          />
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))
@@ -556,10 +548,6 @@ function ChatPageContent() {
 
             {/* Input Area */}
             <div className="border-t p-4">
-              <FallbackNotification 
-                backend={lastBackendUsed} 
-                onDismiss={() => setLastBackendUsed('tandemn')}
-              />
               {roomMessages.length === 0 && (
                 <div className="mb-4">
                   <p className="text-sm text-muted-foreground mb-2">Try these prompts:</p>
@@ -642,13 +630,13 @@ function ChatPageContent() {
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <MessageSquare className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h2 className="text-xl font-semibold mb-2">Welcome to Chat</h2>
+              <h2 className="text-xl font-semibold mb-2">Welcome to Playground</h2>
               <p className="text-muted-foreground mb-4">
                 Create a new conversation to get started
               </p>
               <Button onClick={() => createNewRoom()} disabled={!currentModel}>
                 <Plus className="h-4 w-4 mr-2" />
-                New Chat
+                New Conversation
               </Button>
             </div>
           </div>

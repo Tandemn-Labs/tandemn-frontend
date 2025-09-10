@@ -129,13 +129,13 @@ export async function POST(request: NextRequest) {
       },
       userId,
       priority: isBatch ? 2 : 1, // Batch requests have higher priority
-      timeout: parseInt(process.env.REQUEST_TIMEOUT || '30000'),
+      timeout: parseInt(process.env.REQUEST_TIMEOUT || '600000'),
       retryCount: 0,
       maxRetries: 2,
     });
 
     // Wait for result (with streaming support in future)
-    const result = await processor.waitForResult(requestId, 35000); // 35s timeout
+    const result = await processor.waitForResult(requestId, 630000); // 10.5 minute timeout
 
     if (!result.success) {
       return NextResponse.json({

@@ -132,6 +132,77 @@ export default function ModelsPage() {
 
   const generateCurlExample = (model: TandemnModel) => {
     const apiKey = getApiKeyPrefix();
+    
+    // Model-specific curl commands based on deployment specifications
+    const modelEndpoints = {
+      'casperhansen/deepseek-r1-distill-llama-70b-awq': {
+        url: 'http://34.207.103.140:8000/v1/chat/completions',
+        body: {
+          model: 'casperhansen/deepseek-r1-distill-llama-70b-awq',
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant' },
+            { role: 'user', content: 'MY CONTENT HERE' }
+          ],
+          stream: true,
+          temperature: 0.6,
+          top_p: 0.9,
+          max_completion_tokens: 2000
+        }
+      },
+      'Qwen/Qwen3-32B-AWQ': {
+        url: 'http://3.91.251.0:8000/v1/chat/completions',
+        body: {
+          model: 'Qwen/Qwen3-32B-AWQ',
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant /no_think' },
+            { role: 'user', content: 'Generate a long story on frog' }
+          ],
+          stream: true,
+          temperature: 0.7,
+          top_k: 20,
+          top_p: 0.8,
+          min_p: 0,
+          max_completion_tokens: 2000
+        }
+      },
+      'btbtyler09/Devstral-Small-2507-AWQ': {
+        url: 'http://98.87.8.56:8000/v1/chat/completions',
+        body: {
+          model: 'btbtyler09/Devstral-Small-2507-AWQ',
+          messages: [
+            {
+              role: 'system',
+              content: `You are Devstral, a helpful agentic model trained by Mistral AI and using the OpenHands scaffold. You can interact with a computer to solve tasks.
+
+<ROLE>
+Your primary role is to assist users by executing commands, modifying code, and solving technical problems effectively. You should be thorough, methodical, and prioritize quality over speed.
+* If the user asks a question, like "why is X happening", don't try to fix the problem. Just give an answer to the question.
+</ROLE>
+
+<EFFICIENCY>
+* Each action you take is somewhat expensive. Wherever possible, combine multiple actions into a single action, e.g. combine multiple bash commands into one, using sed and grep to edit/view multiple files at once.
+* When exploring the codebase, use efficient tools like find, grep, and git commands with appropriate filters to minimize unnecessary operations.
+</EFFICIENCY>`
+            },
+            { role: 'user', content: 'Give me the python code for hello world' }
+          ],
+          stream: true,
+          max_completion_tokens: 100
+        }
+      }
+    };
+
+    const endpoint = modelEndpoints[model.id as keyof typeof modelEndpoints];
+    
+    if (endpoint) {
+      return `curl --location '${endpoint.url}' \\
+--header 'Accept: text/event-stream' \\
+--header 'Cache-Control: no-cache' \\
+--header 'Content-Type: application/json' \\
+--data '${JSON.stringify(endpoint.body, null, 2)}'`;
+    }
+    
+    // Fallback for other models
     const domain = getApiDomain();
     return `curl -X POST ${domain}/api/v1/chat/complete \\
   -H "Authorization: Bearer ${apiKey}" \\
@@ -302,7 +373,18 @@ console.log(data);`;
                   </div>
 
                   <div className="mt-4">
-                    <p className="text-sm font-medium mb-2">Capabilities</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium">Capabilities</p>
+                      <Link href={`/chat?model=${selectedModel.id}`}>
+                        <Button 
+                          size="sm" 
+                          className="bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/25 ring-2 ring-green-500/20 hover:ring-green-500/30 transition-all duration-300"
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Try in Playground
+                        </Button>
+                      </Link>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {selectedModel.capabilities.map((capability) => (
                         <Badge key={capability} variant="outline">
@@ -314,81 +396,19 @@ console.log(data);`;
                 </CardContent>
               </Card>
 
-              {/* API Integration */}
+              {/* Code Examples */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Code className="h-5 w-5" />
-                    API Integration
+                    Code Examples
                   </CardTitle>
                   <CardDescription>
-                    Get started with {selectedModel.name} using your API key
+                    Direct API endpoints for {selectedModel.name}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {/* API Key Section */}
-                  <div className="mb-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <Key className="h-4 w-4" />
-                        API Key Required
-                      </h3>
-                      {isSignedIn && (
-                        <Button
-                          onClick={() => setShowApiKeyDialog(true)}
-                          variant="outline"
-                          size="sm"
-                          className="flex items-center gap-2"
-                        >
-                          <Plus className="h-4 w-4" />
-                          {apiKeys.length > 0 ? 'Manage Keys' : 'Generate Key'}
-                        </Button>
-                      )}
-                    </div>
-
-                    {!isSignedIn ? (
-                      <div className="p-4 border-2 border-dashed border-border rounded-lg text-center">
-                        <p className="text-white mb-4">
-                          Sign in to generate and manage your API keys
-                        </p>
-                        <Link href="/sign-in">
-                          <Button>Sign In</Button>
-                        </Link>
-                      </div>
-                    ) : apiKeys.length === 0 ? (
-                      <div className="p-4 border-2 border-dashed border-border rounded-lg text-center">
-                        <p className="text-white mb-4">
-                          Generate your first API key to get started
-                        </p>
-                        <Button onClick={() => setShowApiKeyDialog(true)}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Generate API Key
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="p-4 bg-muted/50 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium">Using API Key</p>
-                            <code className="text-xs text-foreground font-mono">
-                              {apiKeys[0].key.substring(0, 12)}...{apiKeys[0].key.slice(-4)}
-                            </code>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowApiKeyDialog(true)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Code Examples */}
                   <div>
-                    <h3 className="text-lg font-semibold mb-3">Code Examples</h3>
                     <Tabs defaultValue="curl" className="space-y-4">
                       <TabsList>
                         <TabsTrigger value="curl">cURL</TabsTrigger>

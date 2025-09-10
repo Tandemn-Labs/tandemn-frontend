@@ -4,9 +4,15 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useUser, SignInButton, UserButton } from '@clerk/nextjs';
-import { Search, Menu, X } from 'lucide-react';
+import { Search, Menu, X, User, CreditCard, BarChart3, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface TopbarProps {
   onSearchFocus?: () => void;
@@ -18,11 +24,12 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navItems = [
-    { href: '/chat', label: 'Chat' },
+    { href: '/chat', label: 'Playground' },
     { href: '/models', label: 'Models' },
     { href: '/keys', label: 'API Keys' },
-    { href: '/credits', label: 'Credits' },
-    { href: '/metrics', label: 'Metrics' },
+    // Combined Credits & Metrics into My Account dropdown
+    // { href: '/credits', label: 'Credits' },
+    // { href: '/metrics', label: 'Metrics' },
     // Settings page - commented out as requested
     // { href: '/settings', label: 'Settings' }
   ];
@@ -32,7 +39,7 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
       <header className="sticky top-0 z-50 w-full border-b border-border/50 glass-card">
         <div className="container flex h-14 items-center justify-center">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-3 group">
+          <Link href="https://www.tandemn.com" className="flex items-center space-x-3 group">
             <img src="/cute-logo-1.png" alt="Tandemn" className="h-8 w-8 gentle-float" />
             <span className="font-bold text-lg gradient-text">Tandemn</span>
           </Link>
@@ -64,6 +71,33 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
                 {item.label}
               </Link>
             ))}
+            
+            {/* My Account Dropdown */}
+            {isSignedIn && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="px-3 py-2 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/5">
+                    <User className="h-4 w-4 mr-2" />
+                    My Account
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <Link href="/credits" className="flex items-center w-full">
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Credits & Billing
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/metrics" className="flex items-center w-full">
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      Usage Metrics
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </nav>
 
           {/* User Menu - Desktop (Positioned absolutely to avoid affecting centering) */}
@@ -148,6 +182,39 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
                   {item.label}
                 </Link>
               ))}
+              
+              {/* Mobile My Account Section */}
+              {isSignedIn && (
+                <>
+                  <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    My Account
+                  </div>
+                  <Link
+                    href="/credits"
+                    className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      pathname === '/credits'
+                        ? 'bg-accent/10 text-accent'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent/5'
+                    }`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <CreditCard className="h-4 w-4 mr-3" />
+                    Credits & Billing
+                  </Link>
+                  <Link
+                    href="/metrics"
+                    className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                      pathname === '/metrics'
+                        ? 'bg-accent/10 text-accent'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent/5'
+                    }`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <BarChart3 className="h-4 w-4 mr-3" />
+                    Usage Metrics
+                  </Link>
+                </>
+              )}
             </nav>
 
             {/* Mobile Sign In */}

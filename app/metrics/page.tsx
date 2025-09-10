@@ -269,10 +269,8 @@ export default function MetricsPage() {
         </Card>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 gap-8 mb-8">
-        {/* Backend Distribution - Removed from user view */}
-        
+      {/* Charts - Side by Side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         {/* Daily Activity */}
         <Card>
           <CardHeader>
@@ -290,25 +288,25 @@ export default function MetricsPage() {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Top Models Chart */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Top Models by Usage</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={metrics.summary.requestsByModel}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="modelId" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="count" fill="#8884d8" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+        {/* Top Models Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Models by Usage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={metrics.summary.requestsByModel}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="modelId" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="count" fill="#8884d8" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Model Breakdown List */}
       <Card className="mb-8">
