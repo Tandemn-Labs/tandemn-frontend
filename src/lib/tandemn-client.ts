@@ -160,14 +160,39 @@ export class TandemnClient {
         throw new Error('Response body is not readable');
       }
       
+      // Declare timeout variable outside try block for cleanup  
+      let connectionTimeout: NodeJS.Timeout | null = null;
+      
       try {
         let buffer = '';
+        let emptyChunkCount = 0;
+        let lastContentTime = Date.now();
+        let hasReceivedRealContent = false;
+        
+        // Set up bailout timeout after connection success
+        connectionTimeout = setTimeout(() => {
+          if (!hasReceivedRealContent) {
+            console.log('🔄 TANDEMN: No real content received within 12 seconds of connection, bailing out for OpenRouter');
+            controller.abort();
+          }
+        }, 12000); // 12 seconds after successful connection
         
         while (true) {
           // Check if abort was signaled
           if (controller.signal.aborted || externalSignal?.aborted) {
+            if (connectionTimeout) clearTimeout(connectionTimeout);
             console.log('🛑 TANDEMN: Abort signal detected, stopping stream reading');
+            if (!hasReceivedRealContent) {
+              throw new Error('TANDEM_BAILOUT: No real content received, connection timeout');
+            }
             break;
+          }
+          
+          // Bailout if too many empty chunks and too much time passed (after real content was received)
+          if (hasReceivedRealContent && emptyChunkCount >= 8 && (Date.now() - lastContentTime) > 15000) {
+            if (connectionTimeout) clearTimeout(connectionTimeout);
+            console.log('🔄 TANDEMN: Too many empty chunks after content, bailing out for fallback');
+            throw new Error('TANDEM_BAILOUT: No real content received');
           }
           
           const { done, value } = await reader.read();
@@ -207,10 +232,21 @@ export class TandemnClient {
                   .replace(/<\|end\|>/g, '')
                   .replace(/<\|endoftext\|>/g, '');
                 
-                if (filteredContent) {
+                if (filteredContent && filteredContent.trim()) {
+                  lastContentTime = Date.now();
+                  emptyChunkCount = 0;
+                  if (!hasReceivedRealContent) {
+                    hasReceivedRealContent = true;
+                    if (connectionTimeout) clearTimeout(connectionTimeout);
+                    console.log('✅ TANDEMN: First real content received, clearing connection timeout');
+                  }
                   completeContent += filteredContent;
                   onChunk(filteredContent); // Call the streaming callback
+                } else {
+                  emptyChunkCount++;
                 }
+              } else {
+                emptyChunkCount++;
               }
             } catch (parseError) {
               console.warn('Failed to parse SSE chunk:', trimmedLine);
@@ -223,6 +259,7 @@ export class TandemnClient {
           }
         }
       } finally {
+        if (connectionTimeout) clearTimeout(connectionTimeout);
         reader.releaseLock();
       }
       
@@ -311,10 +348,40 @@ export class TandemnClient {
         throw new Error('Response body is not readable');
       }
       
+      // Declare timeout variable outside try block for cleanup  
+      let connectionTimeout: NodeJS.Timeout | null = null;
+      
       try {
         let buffer = '';
+        let emptyChunkCount = 0;
+        let lastContentTime = Date.now();
+        let hasReceivedRealContent = false;
+        
+        // Set up bailout timeout after connection success
+        connectionTimeout = setTimeout(() => {
+          if (!hasReceivedRealContent) {
+            console.log('🔄 TANDEMN: No real content received within 12 seconds of connection, bailing out for OpenRouter');
+            controller.abort();
+          }
+        }, 10000); // 12 seconds after successful connection
         
         while (true) {
+          // Check if abort was signaled
+          if (controller.signal.aborted) {
+            if (connectionTimeout) clearTimeout(connectionTimeout);
+            if (!hasReceivedRealContent) {
+              throw new Error('TANDEM_BAILOUT: No real content received, connection timeout');
+            }
+            break;
+          }
+          
+          // Bailout if too many empty chunks and too much time passed (after real content was received)
+          if (hasReceivedRealContent && emptyChunkCount >= 8 && (Date.now() - lastContentTime) > 15000) {
+            if (connectionTimeout) clearTimeout(connectionTimeout);
+            console.log('🔄 TANDEMN: Too many empty chunks after content, bailing out for fallback');
+            throw new Error('TANDEM_BAILOUT: No real content received');
+          }
+          
           const { done, value } = await reader.read();
           
           if (done) break;
@@ -340,11 +407,30 @@ export class TandemnClient {
               const chunk = JSON.parse(jsonData);
               const content = chunk.choices?.[0]?.delta?.content;
               if (content) {
-                completeContent += content;
-                // Log progress for debugging
-                if (completeContent.length % 100 === 0) {
-                  console.log(`📝 TANDEMN: Received ${completeContent.length} characters so far...`);
+                // Filter out end-of-text tokens
+                const filteredContent = content
+                  .replace(/<\|eot_id\|>/g, '')
+                  .replace(/<\|end\|>/g, '')
+                  .replace(/<\|endoftext\|>/g, '');
+                
+                if (filteredContent && filteredContent.trim()) {
+                  lastContentTime = Date.now();
+                  emptyChunkCount = 0;
+                  if (!hasReceivedRealContent) {
+                    hasReceivedRealContent = true;
+                    if (connectionTimeout) clearTimeout(connectionTimeout);
+                    console.log('✅ TANDEMN: First real content received, clearing connection timeout');
+                  }
+                  completeContent += filteredContent;
+                  // Log progress for debugging
+                  if (completeContent.length % 100 === 0) {
+                    console.log(`📝 TANDEMN: Received ${completeContent.length} characters so far...`);
+                  }
+                } else {
+                  emptyChunkCount++;
                 }
+              } else {
+                emptyChunkCount++;
               }
             } catch (parseError) {
               console.warn('Failed to parse SSE chunk:', trimmedLine);
@@ -352,6 +438,7 @@ export class TandemnClient {
           }
         }
       } finally {
+        if (connectionTimeout) clearTimeout(connectionTimeout);
         reader.releaseLock();
       }
       

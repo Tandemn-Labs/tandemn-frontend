@@ -187,6 +187,10 @@ async function tryTandemChat(
     }
     
   } catch (error) {
+    if (error instanceof Error && error.message.includes('TANDEM_BAILOUT')) {
+      console.log('🔄 BAILOUT: Tandem bailout detected, returning null for OpenRouter fallback');
+      return null;
+    }
     console.error('Error calling Tandem external API:', error);
     return null;
   }
