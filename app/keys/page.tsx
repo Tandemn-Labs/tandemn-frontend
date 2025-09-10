@@ -146,7 +146,7 @@ export default function APIKeysPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">API Keys</h1>
         <p className="text-muted-foreground">
-          Generate API keys to access our services programmatically. Pricing is based on tokens consumed (~10 input tokens or ~5 output tokens = $1).
+          Generate API keys to access our services programmatically. Pricing is based on tokens consumed.
         </p>
       </div>
 
