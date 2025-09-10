@@ -1,7 +1,7 @@
 import { Model, ChatRoom, Message, ModelsFilter, RankingModel, User, Transaction, Usage, CreditBalance } from './types';
 import { generateModels, getFeaturedModels, getKPIStats } from './seed';
 import { getModelById as getModelByIdFromConfig } from '@/lib/models-config';
-import { getModelById as getTandemnModelById } from '@/config/models';
+import { getModelById as getTandemnModelById, getAllModels as getAllTandemnModels } from '@/config/models';
 
 // In-memory database
 export class MockDB {
@@ -15,8 +15,27 @@ export class MockDB {
   public creditBalances: Map<string, CreditBalance> = new Map(); // userId -> balance
   
   private constructor() {
-    this.models = generateModels(500);
+    this.models = this.getTandemnModels();
     this.initializeDemoData();
+  }
+  
+  private getTandemnModels(): Model[] {
+    return getAllTandemnModels().map(tandemnModel => ({
+      id: tandemnModel.id,
+      name: tandemnModel.name,
+      vendor: tandemnModel.provider,
+      series: tandemnModel.provider.toLowerCase(),
+      short: tandemnModel.name.toLowerCase().replace(/\s+/g, '-'),
+      context: tandemnModel.context_length,
+      promptPrice: tandemnModel.input_price_per_1m,
+      completionPrice: tandemnModel.output_price_per_1m,
+      tokensPerWeek: 100000, // Mock popularity
+      latencyMs: 1000, // Default latency
+      weeklyGrowthPct: 5.2, // Mock growth
+      modalities: ['text'],
+      description: tandemnModel.description,
+      badges: ['Tandem', ...(tandemnModel.capabilities || [])],
+    } as Model));
   }
   
   private initializeDemoData() {
