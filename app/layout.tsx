@@ -21,7 +21,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      appearance={{
+        elements: {
+          // Hide the development mode footer
+          footer: "hidden",
+          // Hide development badge in UserButton dropdown
+          userButtonPopoverFooter: "hidden",
+          // Hide the Clerk branding in user button
+          userButtonPopoverActionButton__manageAccount: {
+            display: "block"
+          },
+          userButtonPopoverActionButton__signOut: {
+            display: "block"
+          }
+        },
+        layout: {
+          // Remove development badge from all Clerk components
+          unsafe_disableDevelopmentModeWarnings: true
+        }
+      }}
+    >
       <html lang="en">
         <body className={inter.className}>
           <Providers>

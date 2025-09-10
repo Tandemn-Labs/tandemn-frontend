@@ -306,3 +306,24 @@
     outline-offset: 2px;
   }
 }
+
+/* Hide Clerk Development Mode Badge Everywhere */
+.cl-userButtonPopoverFooter,
+.cl-footer,
+.cl-internal-1dauvpw,
+.cl-internal-b3fm6y,
+[data-localization-key="developmentMode"],
+.cl-userButtonPopoverFooter__text {
+  display: none !important;
+}
+
+/* Hide the entire footer section in Clerk components */
+.cl-userButtonPopoverCard > div:last-child,
+.cl-userButtonPopoverMainFooter {
+  display: none !important;
+}
+
+/* Hide "Secured by Clerk" if needed */
+.cl-internal-wkkub3 {
+  display: none !important;
+}
