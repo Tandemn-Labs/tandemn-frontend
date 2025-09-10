@@ -192,7 +192,7 @@ console.log(data);`;
     <div className="container max-w-7xl mx-auto py-8 px-4">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Models</h1>
-        <p className="text-black dark:text-white">
+        <p className="text-white dark:text-white">
           Choose from our available models and get started with API integration
         </p>
       </div>
@@ -206,7 +206,7 @@ console.log(data);`;
                 <Brain className="h-5 w-5" />
                 Available Models
               </CardTitle>
-              <CardDescription className="text-black dark:text-white">
+              <CardDescription className="text-white">
                 Select a model to view details and integration examples
               </CardDescription>
             </CardHeader>
@@ -228,14 +228,14 @@ console.log(data);`;
                         {model.provider}
                       </Badge>
                     </div>
-                    <p className="text-xs text-black dark:text-white line-clamp-2">
+                    <p className="text-xs text-white dark:text-white line-clamp-2">
                       {model.description}
                     </p>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-black dark:text-white">
+                      <span className="text-white">
                         {formatNumber(model.context_length)} context
                       </span>
-                      <span className="text-black dark:text-white">
+                      <span className="text-white">
                         {formatPrice(model.input_price_per_1m)}/1M tokens
                       </span>
                     </div>
@@ -266,7 +266,7 @@ console.log(data);`;
                         <Zap className="h-5 w-5" />
                         {selectedModel.name}
                       </CardTitle>
-                      <CardDescription className="text-black dark:text-white">{selectedModel.description}</CardDescription>
+                      <CardDescription className="text-white dark:text-white">{selectedModel.description}</CardDescription>
                     </div>
                     <Badge variant="secondary">{selectedModel.provider}</Badge>
                   </div>
@@ -284,14 +284,14 @@ console.log(data);`;
                       <p className="text-2xl font-bold text-green-600">
                         {formatPrice(selectedModel.input_price_per_1m)}
                       </p>
-                      <p className="text-xs text-black dark:text-white">per 1M tokens</p>
+                      <p className="text-xs text-white">per 1M tokens</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm font-medium">Output Price</p>
                       <p className="text-2xl font-bold text-green-600">
                         {formatPrice(selectedModel.output_price_per_1m)}
                       </p>
-                      <p className="text-xs text-black dark:text-white">per 1M tokens</p>
+                      <p className="text-xs text-white">per 1M tokens</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm font-medium">Max Tokens</p>
@@ -348,7 +348,7 @@ console.log(data);`;
 
                     {!isSignedIn ? (
                       <div className="p-4 border-2 border-dashed border-border rounded-lg text-center">
-                        <p className="text-black dark:text-white mb-4">
+                        <p className="text-white mb-4">
                           Sign in to generate and manage your API keys
                         </p>
                         <Link href="/sign-in">
@@ -357,7 +357,7 @@ console.log(data);`;
                       </div>
                     ) : apiKeys.length === 0 ? (
                       <div className="p-4 border-2 border-dashed border-border rounded-lg text-center">
-                        <p className="text-black dark:text-white mb-4">
+                        <p className="text-white mb-4">
                           Generate your first API key to get started
                         </p>
                         <Button onClick={() => setShowApiKeyDialog(true)}>
@@ -454,7 +454,7 @@ console.log(data);`;
                         <Zap className="h-4 w-4" />
                         <div>
                           <p className="font-medium text-sm">Credits & Billing</p>
-                          <p className="text-xs text-black dark:text-white">Manage your usage and billing</p>
+                          <p className="text-xs text-white">Manage your usage and billing</p>
                         </div>
                         <ExternalLink className="h-4 w-4 ml-auto" />
                       </Link>
@@ -466,7 +466,7 @@ console.log(data);`;
           ) : (
             <Card>
               <CardContent className="flex items-center justify-center h-64">
-                <p className="text-black dark:text-white">Select a model to view details</p>
+                <p className="text-white">Select a model to view details</p>
               </CardContent>
             </Card>
           )}

@@ -1,5 +1,25 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+// Settings page is currently disabled - redirecting to chat
+export default function SettingsPage() {
+  const router = useRouter();
+  
+  useEffect(() => {
+    router.push('/chat');
+  }, [router]);
+
+  return (
+    <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
+      <p className="text-muted-foreground">Redirecting...</p>
+    </div>
+  );
+}
+
+// Original imports commented out for when settings page is re-enabled
+/*
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,6 +55,7 @@ interface RawEvent {
   };
 }
 
+/* Original settings page code - commented out
 export default function SettingsPage() {
   const { user, isSignedIn } = useUser();
   const [rawEvents, setRawEvents] = useState<RawEvent[]>([]);
@@ -354,3 +375,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+*/

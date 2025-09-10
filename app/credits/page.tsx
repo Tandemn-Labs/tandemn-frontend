@@ -8,23 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Wallet, 
-  History, 
-  TrendingDown, 
   TrendingUp, 
   RefreshCw, 
-  Zap, 
   Calendar,
   DollarSign,
   Activity,
   CreditCard,
-  ArrowUpRight,
-  ArrowDownLeft
+  Plus
 } from 'lucide-react';
 import { type Transaction } from '@/lib/credits-client';
-import { STRIPE_CREDIT_PACKAGES } from '@/lib/stripe-config';
 
 export default function CreditsPage() {
   const { isSignedIn, isLoaded } = useUser();
@@ -184,27 +178,6 @@ export default function CreditsPage() {
     );
   }
 
-  const getTransactionIcon = (transaction: Transaction) => {
-    switch (transaction.type) {
-      case 'credit_purchase':
-        return <ArrowDownLeft className="h-4 w-4 text-green-500" />;
-      case 'usage_charge':
-        return <ArrowUpRight className="h-4 w-4 text-red-500" />;
-      case 'bonus_credit':
-        return <Zap className="h-4 w-4 text-blue-500" />;
-      default:
-        return <Activity className="h-4 w-4 text-gray-500" />;
-    }
-  };
-
-  const formatTransactionDescription = (transaction: Transaction) => {
-    if (transaction.metadata?.modelId) {
-      const { modelId, inputTokens, outputTokens } = transaction.metadata;
-      return `${modelId} (${inputTokens || 0} input, ${outputTokens || 0} output tokens)`;
-    }
-    return transaction.description;
-  };
-
   // Calculate usage stats
   const usageTransactions = transactions.filter(t => t.type === 'usage_charge');
   const purchaseTransactions = transactions.filter(t => t.type === 'credit_purchase');
@@ -221,14 +194,29 @@ export default function CreditsPage() {
     .filter(t => t.type === 'usage_charge')
     .reduce((total, t) => total + Math.abs(t.amount), 0);
 
+  // Calculate most used model
+  const modelUsage = usageTransactions.reduce((acc, t) => {
+    const modelId = t.metadata?.modelId || 'Unknown';
+    acc[modelId] = (acc[modelId] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const mostUsedModel = Object.entries(modelUsage).reduce((max, [model, count]) => {
+    return count > (max.count || 0) ? { model, count } : max;
+  }, { model: 'N/A', count: 0 }).model;
+
+  const avgCostPerCall = usageTransactions.length > 0 
+    ? (totalSpent / usageTransactions.length).toFixed(4)
+    : '0.0000';
+
   return (
-    <div className="container max-w-6xl mx-auto py-8 px-4">
+    <div className="container max-w-5xl mx-auto py-8 px-4">
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Credits & Billing</h1>
             <p className="text-muted-foreground">
-              Monitor your API usage and manage your account balance
+              Manage your account balance and billing
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={refreshData} disabled={loading || transactionsLoading}>
@@ -240,7 +228,7 @@ export default function CreditsPage() {
 
       {/* Success/Error Messages */}
       {successMessage && (
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="mb-6 p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
@@ -248,12 +236,12 @@ export default function CreditsPage() {
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-green-800">{successMessage}</p>
+              <p className="text-sm font-medium text-green-800 dark:text-green-200">{successMessage}</p>
             </div>
             <div className="ml-auto pl-3">
               <button
                 type="button"
-                className="inline-flex rounded-md bg-green-50 p-1.5 text-green-500 hover:bg-green-100 focus:outline-none"
+                className="inline-flex rounded-md bg-green-50 dark:bg-green-950/50 p-1.5 text-green-500 hover:bg-green-100 dark:hover:bg-green-900/50 focus:outline-none"
                 onClick={() => setSuccessMessage(null)}
               >
                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -266,7 +254,7 @@ export default function CreditsPage() {
       )}
 
       {cancelMessage && (
-        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-950/50 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
@@ -274,12 +262,12 @@ export default function CreditsPage() {
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-yellow-800">{cancelMessage}</p>
+              <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">{cancelMessage}</p>
             </div>
             <div className="ml-auto pl-3">
               <button
                 type="button"
-                className="inline-flex rounded-md bg-yellow-50 p-1.5 text-yellow-500 hover:bg-yellow-100 focus:outline-none"
+                className="inline-flex rounded-md bg-yellow-50 dark:bg-yellow-950/50 p-1.5 text-yellow-500 hover:bg-yellow-100 dark:hover:bg-yellow-900/50 focus:outline-none"
                 onClick={() => setCancelMessage(null)}
               >
                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -291,240 +279,154 @@ export default function CreditsPage() {
         </div>
       )}
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Current Balance */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Current Balance</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
+      {/* Balance and Usage Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+        {/* Current Balance - Extra Large Card on Left (reduced by 20%) */}
+        <Card className="lg:col-span-7 bg-gradient-to-br from-primary/10 to-primary/5 h-[280px] flex flex-col">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-medium flex items-center gap-3">
+              <Wallet className="h-6 w-6" />
+              Current Balance
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
+          <CardContent className="flex-1 flex flex-col justify-center">
+            <div className="text-7xl font-bold mb-4">
               {loading ? (
-                <div className="h-8 w-16 bg-muted animate-pulse rounded"></div>
+                <div className="h-20 w-48 bg-muted animate-pulse rounded"></div>
               ) : (
                 `$${credits.toFixed(2)}`
               )}
             </div>
-            <p className="text-xs text-muted-foreground">Available credits</p>
+            <p className="text-lg text-muted-foreground">Available credits</p>
           </CardContent>
         </Card>
 
-        {/* Total Spent */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Usage</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalSpent.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">All-time API usage</p>
-          </CardContent>
-        </Card>
-
-        {/* This Month */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Last 30 Days</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${recentSpent.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Recent usage</p>
-          </CardContent>
-        </Card>
-
-        {/* API Calls */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">API Calls</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{usageTransactions.length}</div>
-            <p className="text-xs text-muted-foreground">Total requests</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Transaction History - Main Column */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <History className="h-5 w-5" />
-                    Transaction History
-                  </CardTitle>
-                  <CardDescription>
-                    Detailed record of all API usage and credit purchases
-                  </CardDescription>
-                </div>
-                <Badge variant="outline">{transactions.length} total</Badge>
-              </div>
+        {/* Right Side - Usage Stats Stacked */}
+        <div className="lg:col-span-5 flex flex-col gap-4">
+          {/* Total Usage */}
+          <Card className="flex-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Total Usage
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              {transactionsLoading ? (
-                <div className="space-y-4">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="h-8 w-8 bg-muted animate-pulse rounded-full"></div>
-                        <div className="space-y-2">
-                          <div className="h-4 w-48 bg-muted animate-pulse rounded"></div>
-                          <div className="h-3 w-32 bg-muted animate-pulse rounded"></div>
-                        </div>
-                      </div>
-                      <div className="h-6 w-16 bg-muted animate-pulse rounded"></div>
-                    </div>
-                  ))}
-                </div>
-              ) : transactions.length === 0 ? (
-                <div className="text-center py-12">
-                  <History className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-muted-foreground mb-2">No transactions yet</p>
-                  <p className="text-sm text-muted-foreground">
-                    Start using the API to see your transaction history
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {transactions.slice(0, 20).map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex-shrink-0">
-                          {getTransactionIcon(transaction)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm truncate">
-                            {formatTransactionDescription(transaction)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(transaction.createdAt).toLocaleString()}
-                          </p>
-                          {transaction.metadata?.cost && (
-                            <p className="text-xs text-muted-foreground">
-                              Cost: ${transaction.metadata.cost.toFixed(4)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className={`font-semibold text-sm ${
-                          transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(4)}
-                        </p>
-                        <Badge 
-                          variant={transaction.status === 'completed' ? 'default' : 'secondary'}
-                          className="text-xs"
-                        >
-                          {transaction.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="text-3xl font-bold">${totalSpent.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">All-time API usage</p>
+            </CardContent>
+          </Card>
+
+          {/* Last 30 Days */}
+          <Card className="flex-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Last 30 Days
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">${recentSpent.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">Recent usage</p>
             </CardContent>
           </Card>
         </div>
+      </div>
 
-        {/* Sidebar */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Add Credits */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                Add Credits
-              </CardTitle>
-              <CardDescription>
-                Purchase credits to use our API services
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Button 
-                onClick={() => setShowPurchaseModal(true)} 
-                disabled={purchasing}
-                className="w-full"
-              >
-                {purchasing ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Processing...</span>
-                  </div>
-                ) : (
-                  <>
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    Add Credits
-                  </>
-                )}
-              </Button>
-              
-              <div className="text-xs text-muted-foreground space-y-1">
+      {/* Large Add Money Button */}
+      <div className="mb-8">
+        <Button 
+          onClick={() => setShowPurchaseModal(true)} 
+          disabled={purchasing}
+          size="lg"
+          className="w-full h-16 text-lg bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+        >
+          {purchasing ? (
+            <div className="flex items-center gap-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              <span>Processing...</span>
+            </div>
+          ) : (
+            <>
+              <Plus className="h-6 w-6 mr-3" />
+              Add Money
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Lower Section - Stats and Billing */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Quick Stats */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Quick Stats
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Most used model</p>
+                <p className="text-lg font-semibold">{mostUsedModel}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Avg. cost per call</p>
+                <p className="text-lg font-semibold">${avgCostPerCall}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total purchased</p>
+                <p className="text-lg font-semibold">${totalPurchased.toFixed(2)}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Total API calls</p>
+                <p className="text-lg font-semibold">{usageTransactions.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Billing Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Billing Method
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Payment method</span>
+              <span className="text-sm font-medium">Prepaid credits</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Currency</span>
+              <span className="text-sm font-medium">USD</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Payment processor</span>
+              <span className="text-sm font-medium">Stripe</span>
+            </div>
+            <div className="pt-3 border-t space-y-2">
+              <div className="text-xs text-muted-foreground">
                 <p>• Pay only for what you use</p>
                 <p>• No monthly subscriptions</p>
                 <p>• Credits never expire</p>
                 <p>• Secure payments via Stripe</p>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Quick Stats */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Quick Stats</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Most used model</span>
-                <span className="font-medium">
-                  {usageTransactions.length > 0 ? 'Llama 3.3 70B' : 'N/A'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Avg. cost per call</span>
-                <span className="font-medium">
-                  ${usageTransactions.length > 0 ? 
-                    (totalSpent / usageTransactions.length).toFixed(4) : 
-                    '0.0000'
-                  }
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Total purchased</span>
-                <span className="font-medium">${totalPurchased.toFixed(2)}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Billing Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Billing</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Billing method</span>
-                <span>Prepaid credits</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Currency</span>
-                <span>USD</span>
-              </div>
-              <div className="pt-2 border-t">
-                <Link href="/keys" className="text-primary hover:underline text-sm">
-                  Manage API Keys →
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              <Link href="/keys" className="text-primary hover:underline text-sm inline-block mt-3">
+                Manage API Keys →
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Custom Amount Modal */}

@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { Calendar, TrendingUp, DollarSign, MessageSquare, Clock, Server, Zap } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { Calendar, TrendingUp, DollarSign, MessageSquare, Clock, History, ArrowUpRight, ArrowDownLeft, Zap, Activity } from 'lucide-react';
+import { type Transaction } from '@/lib/credits-client';
 
 interface MetricsData {
   summary: {
@@ -16,11 +17,7 @@ interface MetricsData {
     totalTokens: number;
     totalCost: number;
     averageProcessingTime: number;
-    requestsByBackend: {
-      tandemn: number;
-      openrouter: number;
-      mock: number;
-    };
+    // Backend information hidden from user metrics
     requestsByModel: Array<{
       modelId: string;
       count: number;
@@ -40,7 +37,7 @@ interface MetricsData {
     modelId: string;
     inputText: string;
     responseText: string;
-    backendUsed: string;
+    // backendUsed: string; // Hidden from user view
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
@@ -52,16 +49,18 @@ interface MetricsData {
   }>;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+// Color constants removed - no longer needed
 
 export default function MetricsPage() {
   const { user, isSignedIn } = useUser();
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
   const [filters, setFilters] = useState({
     modelId: '',
-    backendUsed: '',
+    // backendUsed: '', // Hidden from user
     startDate: '',
     endDate: '',
   });
@@ -73,7 +72,7 @@ export default function MetricsPage() {
       
       const params = new URLSearchParams();
       if (filters.modelId) params.append('modelId', filters.modelId);
-      if (filters.backendUsed) params.append('backendUsed', filters.backendUsed);
+      // Backend filter removed from user interface
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
 
@@ -91,11 +90,27 @@ export default function MetricsPage() {
     }
   };
 
+  const fetchTransactions = async () => {
+    try {
+      setTransactionsLoading(true);
+      const response = await fetch('/api/credits/transactions');
+      if (response.ok) {
+        const data = await response.json();
+        setTransactions(data.transactions || []);
+      }
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isSignedIn) {
       fetchMetrics();
+      fetchTransactions();
     }
-  }, [isSignedIn, filters]);
+  }, [isSignedIn, filters]); // Backend filters removed from user interface
 
   if (!isSignedIn) {
     return (
@@ -142,11 +157,29 @@ export default function MetricsPage() {
     );
   }
 
-  const backendData = [
-    { name: 'Tandemn', value: metrics.summary.requestsByBackend.tandemn, color: '#0088FE' },
-    { name: 'OpenRouter', value: metrics.summary.requestsByBackend.openrouter, color: '#00C49F' },
-    { name: 'Mock', value: metrics.summary.requestsByBackend.mock, color: '#FFBB28' },
-  ];
+  // Backend data removed from user view
+
+  // Transaction helper functions
+  const getTransactionIcon = (transaction: Transaction) => {
+    switch (transaction.type) {
+      case 'credit_purchase':
+        return <ArrowDownLeft className="h-4 w-4 text-green-500" />;
+      case 'usage_charge':
+        return <ArrowUpRight className="h-4 w-4 text-red-500" />;
+      case 'bonus_credit':
+        return <Zap className="h-4 w-4 text-blue-500" />;
+      default:
+        return <Activity className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const formatTransactionDescription = (transaction: Transaction) => {
+    if (transaction.metadata?.modelId) {
+      const { modelId, inputTokens, outputTokens } = transaction.metadata;
+      return `${modelId} (${inputTokens || 0} input, ${outputTokens || 0} output tokens)`;
+    }
+    return transaction.description;
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -163,7 +196,7 @@ export default function MetricsPage() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium">Model</label>
               <Input
@@ -172,20 +205,7 @@ export default function MetricsPage() {
                 onChange={(e) => setFilters({ ...filters, modelId: e.target.value })}
               />
             </div>
-            <div>
-              <label className="text-sm font-medium">Backend</label>
-              <Select value={filters.backendUsed || "all"} onValueChange={(value) => setFilters({ ...filters, backendUsed: value === "all" ? "" : value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All backends" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All backends</SelectItem>
-                  <SelectItem value="tandemn">Tandemn</SelectItem>
-                  <SelectItem value="openrouter">OpenRouter</SelectItem>
-                  <SelectItem value="mock">Mock</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Backend filter removed from user interface */}
             <div>
               <label className="text-sm font-medium">Start Date</label>
               <Input
@@ -250,35 +270,9 @@ export default function MetricsPage() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Backend Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Requests by Backend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={backendData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {backendData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 gap-8 mb-8">
+        {/* Backend Distribution - Removed from user view */}
+        
         {/* Daily Activity */}
         <Card>
           <CardHeader>
@@ -430,24 +424,7 @@ export default function MetricsPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-2">
                     <Badge variant="outline">{response.modelId}</Badge>
-                    <Badge variant={response.backendUsed === 'tandemn' ? 'default' : 'secondary'}>
-                      {response.backendUsed === 'tandemn' ? (
-                        <>
-                          <Server className="h-3 w-3 mr-1" />
-                          Tandemn
-                        </>
-                      ) : response.backendUsed === 'openrouter' ? (
-                        <>
-                          <Zap className="h-3 w-3 mr-1" />
-                          OpenRouter
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="h-3 w-3 mr-1" />
-                          Mock
-                        </>
-                      )}
-                    </Badge>
+                    {/* Backend badge removed from user view */}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {new Date(response.timestamp).toLocaleString()}
@@ -467,6 +444,88 @@ export default function MetricsPage() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Transaction History */}
+      <Card className="mt-8">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Transaction History
+              </CardTitle>
+              <CardDescription>
+                Detailed record of all API usage and credit purchases
+              </CardDescription>
+            </div>
+            <Badge variant="outline">{transactions.length} total</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {transactionsLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="h-8 w-8 bg-muted animate-pulse rounded-full"></div>
+                    <div className="space-y-2">
+                      <div className="h-4 w-48 bg-muted animate-pulse rounded"></div>
+                      <div className="h-3 w-32 bg-muted animate-pulse rounded"></div>
+                    </div>
+                  </div>
+                  <div className="h-6 w-16 bg-muted animate-pulse rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="text-center py-12">
+              <History className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground mb-2">No transactions yet</p>
+              <p className="text-sm text-muted-foreground">
+                Start using the API to see your transaction history
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {transactions.slice(0, 50).map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      {getTransactionIcon(transaction)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">
+                        {formatTransactionDescription(transaction)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(transaction.createdAt).toLocaleString()}
+                      </p>
+                      {transaction.metadata?.cost && (
+                        <p className="text-xs text-muted-foreground">
+                          Cost: ${transaction.metadata.cost.toFixed(4)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className={`font-semibold text-sm ${
+                      transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(4)}
+                    </p>
+                    <Badge 
+                      variant={transaction.status === 'completed' ? 'default' : 'secondary'}
+                      className="text-xs"
+                    >
+                      {transaction.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

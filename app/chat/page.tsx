@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useSearchParams } from 'next/navigation';
-import { Plus, MessageSquare, Settings, Send, Paperclip, Globe, Menu, X, Zap, ChevronDown, Check, Square } from 'lucide-react';
+import { Plus, MessageSquare, Settings, Send, Paperclip, Globe, Menu, X, Zap, ChevronDown, Check, Square, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,6 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useRoomsStore } from '@/store/rooms';
 import { ChatRoom, Message, Model } from '@/mock/types';
 import { GPUUtilization } from '@/components/gpu-utilization';
@@ -33,6 +41,7 @@ function ChatPageContent() {
     messages,
     setRooms,
     addRoom,
+    removeRoom,
     setActiveRoom,
     addMessage,
     updateMessage,
@@ -56,6 +65,9 @@ function ChatPageContent() {
   const [lastBackendUsed, setLastBackendUsed] = useState<'tandemn' | 'openrouter' | 'mock'>('tandemn');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userCredits, setUserCredits] = useState<number>(0);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // AbortController ref for cancelling streaming requests
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -144,6 +156,38 @@ function ChatPageContent() {
       }
     } catch (error) {
       console.error('Failed to create room:', error);
+    }
+  };
+
+  const handleDeleteRoom = async (roomId: string) => {
+    setRoomToDelete(roomId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteRoom = async () => {
+    if (!roomToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/chat/rooms/${roomToDelete}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete room');
+      }
+      
+      // Remove from local state
+      removeRoom(roomToDelete);
+      
+      // Close dialog
+      setDeleteDialogOpen(false);
+      setRoomToDelete(null);
+    } catch (error) {
+      console.error('Failed to delete room:', error);
+      // You could add a toast notification here to show error
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -359,21 +403,36 @@ function ChatPageContent() {
               {rooms.map((room) => (
                 <Card
                   key={room.id}
-                  className={`cursor-pointer transition-colors hover:bg-muted/50 ${
+                  className={`group cursor-pointer transition-colors hover:bg-muted/50 ${
                     activeRoomId === room.id ? 'bg-muted' : ''
                   }`}
-                  onClick={() => {
+                  onClick={(e) => {
+                    // Don't select room if clicking on delete button
+                    if ((e.target as HTMLElement).closest('[data-delete-button]')) {
+                      return;
+                    }
                     handleSetActiveRoom(room.id);
                     setIsSidebarOpen(false);
                   }}
                 >
-                  <CardContent className="p-3">
-                    <h3 className="font-medium text-sm line-clamp-1">
-                      {room.title}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(room.createdAt).toLocaleDateString()}
-                    </p>
+                  <CardContent className="p-3 flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm line-clamp-1">
+                        {room.title}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(room.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button
+                      data-delete-button
+                      variant="ghost"
+                      size="icon"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 ml-2"
+                      onClick={() => handleDeleteRoom(room.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                    </Button>
                   </CardContent>
                 </Card>
               ))}
@@ -403,16 +462,16 @@ function ChatPageContent() {
                       }}
                       disabled={isStreaming}
                     >
-                      <SelectTrigger className="w-[280px]">
+                      <SelectTrigger className="min-w-[320px] max-w-[600px] w-auto">
                         <SelectValue placeholder="Select a model">
                           {currentModel ? (
-                            <div className="flex items-center space-x-2">
-                              <span className="font-medium">{currentModel.name}</span>
-                              <div className="flex space-x-1">
-                                <Badge variant="secondary" className="text-xs">
+                            <div className="flex items-center space-x-2 w-full">
+                              <span className="font-medium truncate flex-shrink-0">{currentModel.name}</span>
+                              <div className="flex space-x-1 flex-shrink-0">
+                                <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                   In: ${currentModel.promptPrice.toFixed(3)}
                                 </Badge>
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs whitespace-nowrap">
                                   Out: ${currentModel.completionPrice.toFixed(3)}
                                 </Badge>
                               </div>
@@ -422,23 +481,23 @@ function ChatPageContent() {
                           )}
                         </SelectValue>
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="min-w-[320px] max-w-[600px]">
                         {models.map((model) => (
                           <SelectItem key={model.id} value={model.id}>
-                            <div className="flex items-center justify-between w-full">
-                              <div className="flex items-center space-x-2">
-                                <span className="font-medium">{model.name}</span>
-                                <div className="flex space-x-1">
-                                  <Badge variant="secondary" className="text-xs">
+                            <div className="flex items-center justify-between w-full min-w-0">
+                              <div className="flex items-center space-x-2 min-w-0 flex-1">
+                                <span className="font-medium truncate flex-shrink-0">{model.name}</span>
+                                <div className="flex space-x-1 flex-shrink-0">
+                                  <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                     In: ${model.promptPrice.toFixed(3)}
                                   </Badge>
-                                  <Badge variant="outline" className="text-xs">
+                                  <Badge variant="outline" className="text-xs whitespace-nowrap">
                                     Out: ${model.completionPrice.toFixed(3)}
                                   </Badge>
                                 </div>
                               </div>
                               {currentModel?.id === model.id && (
-                                <Check className="h-4 w-4 ml-2" />
+                                <Check className="h-4 w-4 ml-2 flex-shrink-0" />
                               )}
                             </div>
                           </SelectItem>
@@ -446,9 +505,10 @@ function ChatPageContent() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button variant="ghost" size="sm">
+                  {/* Settings button - commented out as requested */}
+                  {/* <Button variant="ghost" size="sm">
                     <Settings className="h-4 w-4" />
-                  </Button>
+                  </Button> */}
                 </div>
               </div>
 
@@ -537,14 +597,14 @@ function ChatPageContent() {
 
               <form onSubmit={handleSubmit} className="flex flex-col md:flex-row md:items-end space-y-2 md:space-y-0 md:space-x-2">
                 <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
+                  {/* <div className="flex items-center space-x-2 mb-2">
                     <Button variant="ghost" size="sm">
                       <Paperclip className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="sm">
                       <Globe className="h-4 w-4" />
                     </Button>
-                  </div>
+                  </div> */}
                   <div className="flex space-x-2">
                     <Input
                       value={inputMessage}
@@ -607,12 +667,43 @@ function ChatPageContent() {
         )}
 
         {/* Tandemn Health Panel - Hidden on mobile */}
-        {!showGPUUtilization && (
+        {/* {!showGPUUtilization && (
           <div className="w-96 border-l bg-muted/5 p-4 hidden lg:block">
             <TandemnHealth />
           </div>
-        )}
+        )} */}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Chat</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this chat? This action cannot be undone and all messages in this conversation will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setRoomToDelete(null);
+              }}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={confirmDeleteRoom}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
