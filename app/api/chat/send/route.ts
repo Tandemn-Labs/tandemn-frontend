@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     
     // Check user credits for authenticated users (based on model pricing)
     const estimatedInputTokens = Math.ceil(conversationText.length / 4);
-    const estimatedOutputTokens = Math.ceil(2000 / 4); // Assume max tokens for estimation
+    const estimatedOutputTokens = Math.ceil(1024 / 4); // Assume max tokens for estimation (playground limit)
     const estimatedCost = calculateTokenCost(model.id, estimatedInputTokens, estimatedOutputTokens);
     
     if (userId) {
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
           const tandemnRequest = {
             model_name: model.id,
             input_text: conversationText,
-            max_tokens: 2000,
+            max_tokens: 1024, // Playground uses 1024, API uses 2000
             messages: messages, // Pass full conversation history
           };
           
@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
             const openRouterRequest = {
               model: openRouterModel,
               messages: messages,
-              max_tokens: 2000,
+              max_tokens: 1024, // Playground limit
               temperature: 0.7,
             };
             

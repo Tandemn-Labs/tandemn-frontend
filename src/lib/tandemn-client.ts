@@ -1,5 +1,6 @@
 import { openRouterClient } from './openrouter-client';
 import { getOpenRouterModelId } from './models-config';
+import { getModelEndpoint, type ModelEndpointConfig } from '@/config/model-endpoints';
 
 // Helper function to map tandemn model names to OpenRouter model names
 export function mapModelToOpenRouter(tandemnModel: string): string {
@@ -99,7 +100,13 @@ export class TandemnClient {
     timeoutMs: number = 60000,
     externalSignal?: AbortSignal // Accept external abort signal
   ): Promise<TandemnInferenceResponse> {
-    console.log('🔧 TANDEMN: Calling real Tandem backend for streaming model:', request.model_name);
+    console.log('🔧 TANDEMN: Calling model endpoint for streaming model:', request.model_name);
+    
+    // Get the specific endpoint configuration for this model
+    const modelConfig = getModelEndpoint(request.model_name);
+    if (!modelConfig) {
+      throw new Error(`No endpoint configuration found for model: ${request.model_name}`);
+    }
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -113,32 +120,44 @@ export class TandemnClient {
     }
 
     try {
-      // Convert Tandemn request to exact format that works with Tandem API
-      const tandemnRequest = {
-        model: request.model_name,
-        messages: request.messages || [
+      // Prepare messages with system prompt if needed
+      let messages = request.messages || [
+        {
+          role: 'user' as const,
+          content: request.input_text,
+        },
+      ];
+
+      // Add system prompt if defined in the model config
+      if (modelConfig.systemPrompt) {
+        messages = [
           {
-            role: 'user' as const,
-            content: request.input_text,
+            role: 'system' as const,
+            content: modelConfig.systemPrompt,
           },
-        ],
-        stream: true, // Use streaming like the working curl
-        max_completion_tokens: request.max_tokens || 2000,
-        temperature: 0.6,
-        top_p: 0.9
+          ...messages
+        ];
+      }
+
+      // Convert Tandemn request to exact format that works with model API
+      const apiRequest = {
+        model: request.model_name,
+        messages: messages,
+        stream: true,
+        ...modelConfig.requestParams
       };
 
-      console.log('🔧 TANDEMN: Sending streaming request to:', `${this.baseUrl}/v1/chat/completions`);
-      console.log('🔧 TANDEMN: Request payload:', JSON.stringify(tandemnRequest));
+      console.log('🔧 TANDEMN: Sending streaming request to:', modelConfig.endpoint);
+      console.log('🔧 TANDEMN: Request payload:', JSON.stringify(apiRequest));
       
-      const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+      const response = await fetch(modelConfig.endpoint, {
         method: 'POST',
         headers: {
           'Accept': 'text/event-stream',
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        body: JSON.stringify(tandemnRequest),
+        body: JSON.stringify(apiRequest),
         signal: controller.signal,
       });
 
@@ -294,39 +313,56 @@ export class TandemnClient {
     request: TandemnInferenceRequest, 
     timeoutMs: number = 60000
   ): Promise<TandemnInferenceResponse> {
-    console.log('🔧 TANDEMN: Calling real Tandem backend for model:', request.model_name);
+    console.log('🔧 TANDEMN: Calling model endpoint for model:', request.model_name);
+    
+    // Get the specific endpoint configuration for this model
+    const modelConfig = getModelEndpoint(request.model_name);
+    if (!modelConfig) {
+      throw new Error(`No endpoint configuration found for model: ${request.model_name}`);
+    }
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      // Convert Tandemn request to exact format that works with Tandem API
-      const tandemnRequest = {
-        model: request.model_name,
-        messages: request.messages || [
+      // Prepare messages with system prompt if needed
+      let messages = request.messages || [
+        {
+          role: 'user' as const,
+          content: request.input_text,
+        },
+      ];
+
+      // Add system prompt if defined in the model config
+      if (modelConfig.systemPrompt) {
+        messages = [
           {
-            role: 'user' as const,
-            content: request.input_text,
+            role: 'system' as const,
+            content: modelConfig.systemPrompt,
           },
-        ],
-        stream: true, // Use streaming like the working curl
-        max_completion_tokens: request.max_tokens || 2000, // Use the max_tokens from request, default to 2000
-        temperature: 0.6,
-        top_p: 0.9
+          ...messages
+        ];
+      }
+
+      // Convert Tandemn request to exact format that works with model API
+      const apiRequest = {
+        model: request.model_name,
+        messages: messages,
+        stream: true,
+        ...modelConfig.requestParams
       };
 
-      console.log('🔧 TANDEMN: Sending streaming request to:', `${this.baseUrl}/v1/chat/completions`);
-      console.log('🔧 TANDEMN: Request payload:', JSON.stringify(tandemnRequest));
-      console.log('🔧 TANDEMN: Production deployment test - backend URL:', this.baseUrl);
+      console.log('🔧 TANDEMN: Sending streaming request to:', modelConfig.endpoint);
+      console.log('🔧 TANDEMN: Request payload:', JSON.stringify(apiRequest));
       
-      const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+      const response = await fetch(modelConfig.endpoint, {
         method: 'POST',
         headers: {
           'Accept': 'text/event-stream',
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache',
         },
-        body: JSON.stringify(tandemnRequest),
+        body: JSON.stringify(apiRequest),
         signal: controller.signal,
       });
 

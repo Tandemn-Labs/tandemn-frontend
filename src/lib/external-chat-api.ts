@@ -60,7 +60,7 @@ export interface StreamingChatCompletionChunk {
 }
 
 const OPENROUTER_API_BASE_URL = 'https://openrouter.ai/api/v1';
-const TANDEM_API_BASE_URL = 'http://98.80.0.197:8001/v1';
+const TANDEM_API_BASE_URL = 'http://34.207.103.140:8000/v1';
 
 export class ExternalChatAPI {
   private baseUrl: string;

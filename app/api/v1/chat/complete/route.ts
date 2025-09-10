@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateAPIKey, getUserCredits, deductCredits, addTransaction } from '@/lib/credits';
 import { getModelById, calculateCost } from '@/config/models';
+import { getModelEndpoint } from '@/config/model-endpoints';
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,135 +41,262 @@ export async function POST(request: NextRequest) {
     // Get the model info
     const modelInfo = getModelById(model);
     if (!modelInfo) {
+      const availableModels = ['casperhansen/deepseek-r1-distill-llama-70b-awq', 'Qwen/Qwen3-32B-AWQ', 'btbtyler09/Devstral-Small-2507-AWQ', 'casperhansen/llama-3.3-70b-instruct-awq'];
       return NextResponse.json(
-        { error: `Model '${model}' not found. Available models: claude-3-5-sonnet, gpt-4o, gemini-1.5-pro, llama-3.1-405b, mixtral-8x22b` },
+        { error: `Model '${model}' not found. Available models: ${availableModels.join(', ')}` },
         { status: 404 }
       );
     }
 
-    // Check if streaming is requested (not supported in mock)
-    if (stream) {
+    // Get the model endpoint configuration
+    const endpointConfig = getModelEndpoint(model);
+    if (!endpointConfig) {
       return NextResponse.json(
-        { error: 'Streaming not supported in mock implementation' },
-        { status: 400 }
+        { error: `Model '${model}' is not configured with an endpoint` },
+        { status: 500 }
       );
     }
 
-    // Calculate input tokens (rough estimate: ~4 characters per token)
-    const inputText = JSON.stringify(messages);
-    const inputTokens = Math.ceil(inputText.length / 4);
+    // Prepare messages for the backend request
+    let backendMessages = [...messages];
     
-    // Generate mock response based on model capabilities
-    const userMessage = messages[messages.length - 1]?.content || '';
-    const mockResponses = [
-      `Hello! I'm ${modelInfo.name} by ${modelInfo.provider}. I can help you with: ${modelInfo.capabilities.join(', ')}. You asked: "${userMessage.substring(0, 100)}${userMessage.length > 100 ? '...' : ''}"`,
-      `This is ${modelInfo.name} responding with my ${modelInfo.context_length.toLocaleString()} token context window. I'll assist you with your request about "${userMessage.substring(0, 50)}${userMessage.length > 50 ? '...' : ''}"`,
-      `As ${modelInfo.name}, I can process up to ${modelInfo.max_tokens.toLocaleString()} output tokens. Let me help you with: "${userMessage.substring(0, 80)}${userMessage.length > 80 ? '...' : ''}"`,
-    ];
-    
-    const responseContent = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-    const outputTokens = Math.ceil(responseContent.length / 4);
-    const totalTokens = inputTokens + outputTokens;
+    // Add system prompt if specified in endpoint config and not already present
+    if (endpointConfig.systemPrompt) {
+      const hasSystemMessage = backendMessages.some(msg => msg.role === 'system');
+      if (!hasSystemMessage) {
+        backendMessages = [{ role: 'system', content: endpointConfig.systemPrompt }, ...backendMessages];
+      }
+    }
 
-    // Calculate cost using our pricing model
-    const cost = calculateCost(model, inputTokens, outputTokens);
+    // Prepare the request for the backend
+    const backendRequest = {
+      model: model,
+      messages: backendMessages,
+      stream: stream,
+      ...endpointConfig.requestParams
+    };
 
-    // Check user balance
+    // Calculate estimated input tokens for cost calculation (rough estimate: ~4 characters per token)
+    const inputText = JSON.stringify(backendMessages);
+    const estimatedInputTokens = Math.ceil(inputText.length / 4);
+
+    // Check user balance with estimated minimum cost
     const userBalance = await getUserCredits(userId);
-    if (userBalance < cost) {
+    const minEstimatedCost = calculateCost(model, estimatedInputTokens, 10); // Estimate minimum 10 output tokens
+    
+    if (userBalance < minEstimatedCost) {
       return NextResponse.json(
         { 
-          error: `Insufficient credits. Required: $${cost.toFixed(4)}, Available: $${userBalance.toFixed(4)}`,
-          required_credits: cost,
+          error: `Insufficient credits. Minimum required: $${minEstimatedCost.toFixed(4)}, Available: $${userBalance.toFixed(4)}`,
+          required_credits: minEstimatedCost,
           available_credits: userBalance,
           token_breakdown: {
-            input_tokens: inputTokens,
-            output_tokens: outputTokens,
+            estimated_input_tokens: estimatedInputTokens,
+            estimated_min_output_tokens: 10,
             input_price_per_1m: modelInfo.input_price_per_1m,
             output_price_per_1m: modelInfo.output_price_per_1m,
-            total_cost: cost
+            estimated_min_cost: minEstimatedCost
           }
         },
         { status: 402 } // Payment Required
       );
     }
 
-    // Charge user credits
-    const chargeSuccess = await deductCredits(userId, cost);
-    if (!chargeSuccess) {
+    try {
+      // Make request to the model's specific endpoint
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (stream) {
+        headers['Accept'] = 'text/event-stream';
+        headers['Cache-Control'] = 'no-cache';
+      } else {
+        headers['Accept'] = 'application/json';
+      }
+
+      const response = await fetch(endpointConfig.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(backendRequest),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Backend API error (${response.status}):`, errorText);
+        return NextResponse.json(
+          { error: `Backend API error: ${response.status} ${response.statusText}` },
+          { status: 502 }
+        );
+      }
+
+      if (stream) {
+        // Handle streaming response
+        const reader = response.body?.getReader();
+        const encoder = new TextEncoder();
+        const decoder = new TextDecoder();
+
+        if (!reader) {
+          return NextResponse.json(
+            { error: 'Failed to get response stream' },
+            { status: 500 }
+          );
+        }
+
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        let accumulatedContent = '';
+
+        const stream = new ReadableStream({
+          async start(controller) {
+            try {
+              let buffer = '';
+              
+              while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                  // Calculate final cost and charge user
+                  const actualCost = calculateCost(model, totalInputTokens, totalOutputTokens);
+                  
+                  // Charge user for actual usage
+                  await deductCredits(userId, actualCost);
+                  
+                  // Add transaction record
+                  await addTransaction(userId, {
+                    type: 'usage_charge',
+                    amount: -actualCost,
+                    description: `${modelInfo.name} - ${totalInputTokens + totalOutputTokens} tokens (streaming)`,
+                    status: 'completed',
+                    metadata: {
+                      model,
+                      input_tokens: totalInputTokens,
+                      output_tokens: totalOutputTokens,
+                      total_tokens: totalInputTokens + totalOutputTokens,
+                      streaming: true
+                    }
+                  });
+                  
+                  break;
+                }
+                
+                buffer += decoder.decode(value, { stream: true });
+                
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                
+                for (const line of lines) {
+                  const trimmedLine = line.trim();
+                  
+                  if (trimmedLine === '') continue;
+                  if (trimmedLine === 'data: [DONE]') {
+                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                    continue;
+                  }
+                  if (!trimmedLine.startsWith('data: ')) continue;
+                  
+                  try {
+                    const jsonData = trimmedLine.slice(6);
+                    const chunk = JSON.parse(jsonData);
+                    
+                    // Extract token usage from chunk if available
+                    if (chunk.usage) {
+                      totalInputTokens = chunk.usage.prompt_tokens || totalInputTokens;
+                      totalOutputTokens = chunk.usage.completion_tokens || totalOutputTokens;
+                    }
+                    
+                    // Accumulate content for token estimation
+                    if (chunk.choices?.[0]?.delta?.content) {
+                      accumulatedContent += chunk.choices[0].delta.content;
+                    }
+                    
+                    controller.enqueue(encoder.encode(`${trimmedLine}\n\n`));
+                  } catch (parseError) {
+                    console.warn('Failed to parse streaming chunk:', trimmedLine);
+                    controller.enqueue(encoder.encode(`${trimmedLine}\n\n`));
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Streaming error:', error);
+              controller.error(error);
+            } finally {
+              controller.close();
+              reader.releaseLock();
+            }
+          }
+        });
+
+        return new NextResponse(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        });
+      } else {
+        // Handle non-streaming response
+        const result = await response.json();
+        
+        // Extract token usage from response
+        const inputTokens = result.usage?.prompt_tokens || estimatedInputTokens;
+        const outputTokens = result.usage?.completion_tokens || Math.ceil((result.choices?.[0]?.message?.content?.length || 0) / 4);
+        const totalTokens = inputTokens + outputTokens;
+        
+        // Calculate actual cost
+        const actualCost = calculateCost(model, inputTokens, outputTokens);
+        
+        // Charge user for actual usage
+        const chargeSuccess = await deductCredits(userId, actualCost);
+        if (!chargeSuccess) {
+          return NextResponse.json(
+            { error: 'Failed to charge credits' },
+            { status: 500 }
+          );
+        }
+        
+        // Add transaction record
+        await addTransaction(userId, {
+          type: 'usage_charge',
+          amount: -actualCost,
+          description: `${modelInfo.name} - ${totalTokens} tokens`,
+          status: 'completed',
+          metadata: {
+            model,
+            input_tokens: inputTokens,
+            output_tokens: outputTokens,
+            total_tokens: totalTokens
+          }
+        });
+        
+        // Add Tandemn-specific billing info to response
+        result.billing = {
+          credits_charged: actualCost,
+          credits_remaining: userBalance - actualCost,
+          input_cost: Math.round(((inputTokens / 1000000) * modelInfo.input_price_per_1m) * 10000) / 10000,
+          output_cost: Math.round(((outputTokens / 1000000) * modelInfo.output_price_per_1m) * 10000) / 10000,
+          pricing: {
+            input_price_per_1m_tokens: modelInfo.input_price_per_1m,
+            output_price_per_1m_tokens: modelInfo.output_price_per_1m,
+          },
+        };
+        
+        result.model_info = {
+          provider: modelInfo.provider,
+          context_length: modelInfo.context_length,
+          capabilities: modelInfo.capabilities,
+          max_tokens: modelInfo.max_tokens
+        };
+        
+        return NextResponse.json(result);
+      }
+    } catch (error) {
+      console.error('Error calling backend API:', error);
       return NextResponse.json(
-        { error: 'Failed to charge credits' },
-        { status: 500 }
+        { error: 'Failed to communicate with backend API' },
+        { status: 502 }
       );
     }
-
-    // Add transaction record
-    await addTransaction(userId, {
-      type: 'usage_charge',
-      amount: -cost,
-      description: `${modelInfo.name} - ${totalTokens} tokens`,
-      status: 'completed',
-      metadata: {
-        model,
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        total_tokens: totalTokens
-      }
-    });
-
-    // Add model-specific latency simulation
-    const baseLatency = {
-      'claude-3-5-sonnet': 800,
-      'gpt-4o': 600,
-      'gemini-1.5-pro': 1200,
-      'llama-3.1-405b': 400,
-      'mixtral-8x22b': 200
-    };
-    
-    const latency = baseLatency[model as keyof typeof baseLatency] || 500;
-    await new Promise(resolve => setTimeout(resolve, Math.random() * latency + 100));
-
-    // Return OpenAI-compatible response
-    const response = {
-      id: `chatcmpl-${Date.now()}`,
-      object: 'chat.completion',
-      created: Math.floor(Date.now() / 1000),
-      model: model,
-      choices: [
-        {
-          index: 0,
-          message: {
-            role: 'assistant',
-            content: responseContent,
-          },
-          finish_reason: 'stop',
-        },
-      ],
-      usage: {
-        prompt_tokens: inputTokens,
-        completion_tokens: outputTokens,
-        total_tokens: totalTokens,
-      },
-      // Tandemn-specific pricing info
-      billing: {
-        credits_charged: cost,
-        credits_remaining: userBalance - cost,
-        input_cost: Math.round(((inputTokens / 1000000) * modelInfo.input_price_per_1m) * 10000) / 10000,
-        output_cost: Math.round(((outputTokens / 1000000) * modelInfo.output_price_per_1m) * 10000) / 10000,
-        pricing: {
-          input_price_per_1m_tokens: modelInfo.input_price_per_1m,
-          output_price_per_1m_tokens: modelInfo.output_price_per_1m,
-        },
-      },
-      model_info: {
-        provider: modelInfo.provider,
-        context_length: modelInfo.context_length,
-        capabilities: modelInfo.capabilities,
-        max_tokens: modelInfo.max_tokens
-      }
-    };
-
-    return NextResponse.json(response);
 
   } catch (error) {
     console.error('Error in /api/v1/chat/complete:', error);

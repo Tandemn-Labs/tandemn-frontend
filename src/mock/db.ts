@@ -1,6 +1,7 @@
 import { Model, ChatRoom, Message, ModelsFilter, RankingModel, User, Transaction, Usage, CreditBalance } from './types';
 import { generateModels, getFeaturedModels, getKPIStats } from './seed';
 import { getModelById as getModelByIdFromConfig } from '@/lib/models-config';
+import { getModelById as getTandemnModelById } from '@/config/models';
 
 // In-memory database
 export class MockDB {
@@ -220,7 +221,29 @@ export class MockDB {
   }
   
   getModelById(id: string): Model | undefined {
-    // Use centralized configuration
+    // First try our Tandemn models
+    const tandemnModel = getTandemnModelById(id);
+    if (tandemnModel) {
+      // Convert Tandemn model to Mock model format
+      return {
+        id: tandemnModel.id,
+        name: tandemnModel.name,
+        vendor: tandemnModel.provider,
+        series: tandemnModel.provider.toLowerCase(),
+        short: tandemnModel.name.toLowerCase().replace(/\s+/g, '-'),
+        context: tandemnModel.context_length,
+        promptPrice: tandemnModel.input_price_per_1m,
+        completionPrice: tandemnModel.output_price_per_1m,
+        tokensPerWeek: 100000, // Mock popularity
+        latencyMs: 1000, // Default latency
+        weeklyGrowthPct: 5.2, // Mock growth
+        modalities: ['text'],
+        description: tandemnModel.description,
+        badges: ['Tandem', ...(tandemnModel.capabilities || [])],
+      } as Model;
+    }
+    
+    // Fallback to old config for backwards compatibility
     return getModelByIdFromConfig(id);
   }
   

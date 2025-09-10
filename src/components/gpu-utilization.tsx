@@ -4,15 +4,17 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface GPUWorker {
   id: string;
   name: string;
+  type: string;
+  memory: string;
+  layers: number;
   location: string;
   utilization: number;
-  blocks: number;
   status: 'active' | 'idle' | 'completing';
 }
 
@@ -24,35 +26,102 @@ interface GPUUtilizationProps {
 }
 
 export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, isStreaming = false, className }: GPUUtilizationProps) {
-  const [workers, setWorkers] = useState<GPUWorker[]>([
-    {
-      id: 'nvidia-l40-1',
-      name: 'NVIDIA L40',
-      location: 'US-East-1',
-      utilization: 0,
-      blocks: 30,
-      status: 'idle'
-    },
-    {
-      id: 'nvidia-l40-2', 
-      name: 'NVIDIA L40',
-      location: 'US-West-2',
-      utilization: 0,
-      blocks: 30,
-      status: 'idle'
-    },
-    {
-      id: 'nvidia-a10g-1',
-      name: 'NVIDIA A10G', 
-      location: 'EU-Central-1',
-      utilization: 0,
-      blocks: 30,
-      status: 'idle'
+  // Get model-specific GPU configuration
+  const getModelGPUs = (modelName: string): GPUWorker[] => {
+    const modelId = getModelIdFromName(modelName);
+    
+    switch (modelId) {
+      case 'deepseek':
+        return [
+          {
+            id: 'l40s-1', name: 'L40S-1', type: 'L40S', memory: '48GB', layers: 23,
+            location: 'Nakano City, Japan', utilization: 0, status: 'idle'
+          },
+          {
+            id: 'l40s-2', name: 'L40S-2', type: 'L40S', memory: '48GB', layers: 23,
+            location: 'Yotsukaido, Japan', utilization: 0, status: 'idle'
+          },
+          {
+            id: 'l40s-3', name: 'L40S-3', type: 'L40S', memory: '48GB', layers: 22,
+            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+          },
+          {
+            id: 'a10g-1', name: 'A10G-1', type: 'A10G', memory: '24GB', layers: 12,
+            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+          }
+        ];
+      
+      case 'qwen':
+        return [
+          {
+            id: 'l40-1', name: 'L40-1', type: 'L40', memory: '48GB', layers: 32,
+            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+          },
+          {
+            id: 'a10g-1', name: 'A10G-1', type: 'A10G', memory: '24GB', layers: 16,
+            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+          },
+          {
+            id: 'a10g-2', name: 'A10G-2', type: 'A10G', memory: '24GB', layers: 16,
+            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+          }
+        ];
+      
+      case 'devstral':
+        return [
+          {
+            id: 'a10g-1', name: 'A10G-1', type: 'A10G', memory: '24GB', layers: 13,
+            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+          },
+          {
+            id: 'a10g-2', name: 'A10G-2', type: 'A10G', memory: '24GB', layers: 13,
+            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+          },
+          {
+            id: 'l4-1', name: 'L4-1', type: 'L4', memory: '24GB', layers: 13,
+            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+          }
+        ];
+      
+      case 'llama':
+      default:
+        return [
+          {
+            id: 'l40-1', name: 'L40-1', type: 'L40', memory: '48GB', layers: 27,
+            location: 'Nakano City, Japan', utilization: 0, status: 'idle'
+          },
+          {
+            id: 'l40-2', name: 'L40-2', type: 'L40', memory: '48GB', layers: 27,
+            location: 'Yotsukaido, Japan', utilization: 0, status: 'idle'
+          },
+          {
+            id: 'l40-3', name: 'L40-3', type: 'L40', memory: '48GB', layers: 26,
+            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+          }
+        ];
     }
-  ]);
+  };
+
+  // Helper to get model ID from name
+  const getModelIdFromName = (name: string): string => {
+    if (name.toLowerCase().includes('deepseek')) return 'deepseek';
+    if (name.toLowerCase().includes('qwen')) return 'qwen';
+    if (name.toLowerCase().includes('devstral')) return 'devstral';
+    if (name.toLowerCase().includes('llama')) return 'llama';
+    return 'llama'; // default
+  };
+
+  const [workers, setWorkers] = useState<GPUWorker[]>(() => getModelGPUs(modelName));
+
+  // Update workers when model changes
+  useEffect(() => {
+    setWorkers(getModelGPUs(modelName));
+  }, [modelName]);
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [animationPhase, setAnimationPhase] = useState<'idle' | 'processing' | 'completing'>('idle');
+  const [currentActiveLayer, setCurrentActiveLayer] = useState<number>(-1);
+  const [completedLayers, setCompletedLayers] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!isVisible) return;
@@ -61,29 +130,63 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
       // Start processing animation and keep it running while streaming
       setAnimationPhase('processing');
       
-      // Animate workers sequentially
-      workers.forEach((worker, index) => {
+      // Set all workers to active (for status display)
+      setWorkers(prev => prev.map(w => ({ 
+        ...w, 
+        status: 'active', 
+        utilization: Math.random() * 80 + 20 
+      })));
+      
+      // Function to run one complete waterfall sequence
+      const runWaterfallSequence = () => {
+        const totalLayers = workers.length;
+        
+        // Clear all completed layers when starting from layer 1 again
+        setCompletedLayers(new Set());
+        setCurrentActiveLayer(-1);
+        
+        // Cycle through each layer rapidly to sync with token streaming
         setTimeout(() => {
-          setWorkers(prev => prev.map((w, i) => 
-            i === index 
-              ? { ...w, status: 'active', utilization: Math.random() * 80 + 20 }
-              : w
-          ));
-        }, index * 200);
-      });
+          for (let layerIndex = 0; layerIndex < totalLayers; layerIndex++) {
+            setTimeout(() => {
+              setCurrentActiveLayer(layerIndex);
+              // After the layer finishes rapidly filling, mark it as completed
+              setTimeout(() => {
+                setCompletedLayers(prev => new Set([...prev, layerIndex]));
+              }, 300); // Mark as completed 300ms after activation (rapid fill)
+            }, layerIndex * 400); // Faster layer transitions (400ms between layers)
+          }
+        }, 50);
+      };
 
-      // Keep updating utilization while streaming
+      // Start the first sequence immediately
+      runWaterfallSequence();
+
+      // Calculate total sequence time: (number of layers * 400ms) + 400ms buffer
+      const sequenceTime = (workers.length * 400) + 400;
+
+      // Loop the waterfall animation continuously while streaming (faster cycles)
+      const waterfallInterval = setInterval(() => {
+        runWaterfallSequence();
+      }, sequenceTime);
+
+      // Keep updating utilization for all workers
       const updateInterval = setInterval(() => {
         setWorkers(prev => prev.map(w => ({
           ...w,
-          utilization: w.status === 'active' ? Math.random() * 80 + 20 : w.utilization
+          utilization: Math.random() * 80 + 20
         })));
       }, 1000);
 
-      return () => clearInterval(updateInterval);
+      return () => {
+        clearInterval(waterfallInterval);
+        clearInterval(updateInterval);
+      };
     } else if (animationPhase === 'processing') {
       // Complete animation when streaming stops
       setAnimationPhase('completing');
+      setCurrentActiveLayer(-1);
+      setCompletedLayers(new Set());
       setWorkers(prev => prev.map(w => ({ ...w, status: 'completing' })));
       
       setTimeout(() => {
@@ -95,52 +198,124 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
         })));
       }, 1000);
     }
-  }, [isVisible, isStreaming]);
+  }, [isVisible, isStreaming, workers.length]);
 
-  // Animate individual blocks
-  const renderBlocks = (worker: GPUWorker) => {
-    const blocks = Array.from({ length: worker.blocks }, (_, i) => {
-      const isActive = i < Math.floor((worker.utilization / 100) * worker.blocks);
-      const delay = i * 50; // Stagger animation
+  // Render layer visualization with waterfall effect
+  const renderLayers = (worker: GPUWorker, workerIndex: number) => {
+    const isActive = worker.status === 'active' || worker.status === 'completing';
+    const isCurrentlyActive = currentActiveLayer === workerIndex && isStreaming;
+    const isCompleted = completedLayers.has(workerIndex);
+    
+    // Calculate total layers for this model to get proportions
+    const totalLayers = workers.reduce((sum, w) => sum + w.layers, 0);
+    const totalBlocksInRow = 50; // Total blocks to show per row
+    
+    // Calculate blocks for this worker based on layer proportion
+    const layerProportion = worker.layers / totalLayers;
+    const blocksForThisWorker = Math.floor(layerProportion * totalBlocksInRow);
+    
+    // Calculate starting position based on previous workers
+    const previousWorkerBlocks = workers.slice(0, workerIndex).reduce((sum, w) => {
+      const prevProportion = w.layers / totalLayers;
+      return sum + Math.floor(prevProportion * totalBlocksInRow);
+    }, 0);
+    
+    const startBlock = previousWorkerBlocks;
+    const endBlock = startBlock + blocksForThisWorker;
+    
+    // For the last worker, ensure we fill to the end
+    const adjustedEndBlock = workerIndex === workers.length - 1 ? totalBlocksInRow : endBlock;
+    
+    // Create ALL blocks
+    const blocks = Array.from({ length: totalBlocksInRow }, (_, i) => {
+      // Check if this block should be lit by this layer
+      const isThisLayerBlock = i >= startBlock && i < adjustedEndBlock;
+      
+      // Block is lit if: currently active OR previously completed (and not cleared)
+      const isBlockLit = isThisLayerBlock && (isCurrentlyActive || isCompleted);
+      
+      // Rapid fill animation - each block lights up quickly in sequence
+      const blockDelay = isThisLayerBlock && isCurrentlyActive ? (i - startBlock) * 20 : 0; // Fast 20ms delay
       
       return (
         <div
           key={i}
           className={cn(
-            "w-3 h-4 transition-all duration-300 ease-in-out",
-            isActive 
-              ? worker.status === 'active' 
-                ? "bg-blue-500 shadow-lg shadow-blue-500/50" 
-                : worker.status === 'completing'
-                ? "bg-green-500 shadow-lg shadow-green-500/50"
+            "h-2 w-2 mr-0.5 transition-all duration-100 ease-in-out", // Faster transition
+            isBlockLit
+              ? isCurrentlyActive
+                ? "bg-blue-500 shadow-sm" // Currently active - blue
+                : "bg-green-500 shadow-sm" // Previously completed - green
+              : worker.status === 'completing' && isThisLayerBlock
+                ? "bg-green-500 shadow-sm"
                 : "bg-gray-200 dark:bg-gray-700"
-              : "bg-gray-200 dark:bg-gray-700"
           )}
           style={{
-            transitionDelay: `${delay}ms`,
-            animation: isActive && worker.status === 'active' 
-              ? `pulse 1.5s infinite ${delay}ms` 
-              : undefined
+            transitionDelay: isCurrentlyActive && isThisLayerBlock ? `${blockDelay}ms` : '0ms',
           }}
         />
       );
     });
 
+    // Calculate blocks served based on actual layers
+    const totalBlocksServed = adjustedEndBlock * 13; // Scale for display
+
     return (
-      <div className="flex gap-1 flex-wrap">
-        {blocks}
+      <div className="py-2">
+        <div className="flex items-center">
+          {blocks}
+        </div>
+        <div className="text-xs text-muted-foreground mt-1">
+          served {totalBlocksServed} blocks
+        </div>
       </div>
     );
   };
+
+  // Calculate total layers for the model
+  const totalLayers = workers.reduce((sum, w) => sum + w.layers, 0);
+  const totalMemory = workers.reduce((sum, w) => sum + parseInt(w.memory), 0);
 
   if (!isVisible) return null;
 
   return (
     <>
       <style jsx>{`
+        @keyframes shimmer {
+          0% { opacity: 0.7; transform: scaleX(1); }
+          50% { opacity: 1; transform: scaleX(1.02); }
+          100% { opacity: 0.7; transform: scaleX(1); }
+        }
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.6; }
+        }
+        @keyframes waterfallPulse {
+          0% { 
+            opacity: 0.7; 
+            transform: scaleY(1);
+            background-color: #3b82f6;
+          }
+          25% { 
+            opacity: 1; 
+            transform: scaleY(1.2);
+            background-color: #1d4ed8;
+          }
+          50% { 
+            opacity: 0.8; 
+            transform: scaleY(1.1);
+            background-color: #2563eb;
+          }
+          75% { 
+            opacity: 1; 
+            transform: scaleY(1.3);
+            background-color: #1e40af;
+          }
+          100% { 
+            opacity: 0.7; 
+            transform: scaleY(1);
+            background-color: #3b82f6;
+          }
         }
       `}</style>
       
@@ -148,9 +323,12 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-sm font-medium">Inference Backend</CardTitle>
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Cpu className="h-4 w-4" />
+                GPU Cluster
+              </CardTitle>
               <CardDescription className="text-xs mt-1">
-                Model: {modelName}
+                {modelName} • {totalLayers} layers • {totalMemory}GB
               </CardDescription>
             </div>
             <Button
@@ -166,8 +344,8 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
         
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Workers</span>
-            <Badge variant="secondary">{workers.length}</Badge>
+            <span className="text-muted-foreground">GPUs</span>
+            <Badge variant="secondary">{workers.length} GPUs</Badge>
           </div>
           
           <div className="space-y-3">
@@ -190,8 +368,12 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
               <div key={worker.id} className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{worker.name} (30GB)</span>
-                    <span className="text-muted-foreground">{worker.location}</span>
+                    <span className="font-medium">
+                      {worker.name} • {worker.type}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {worker.memory} • {worker.layers} layers
+                    </span>
                   </div>
                   <Badge 
                     variant="secondary" 
@@ -202,16 +384,16 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
                     )}
                   >
                     {worker.status === 'idle' ? 'Idle' :
-                     worker.status === 'active' ? `${Math.round(worker.utilization)}%` : 
+                     worker.status === 'active' ? 'Processing' : 
                      'Completed'}
                   </Badge>
                 </div>
                 
                 <div className="space-y-1">
-                  {renderBlocks(worker)}
+                  {renderLayers(worker, index)}
                   {isExpanded && (
                     <div className="text-xs text-muted-foreground">
-                      served {Math.floor(Math.random() * 400 + 100)} blocks
+                      {worker.location} • layers {index === 0 ? '0' : workers.slice(0, index).reduce((sum, w) => sum + w.layers, 0)}-{workers.slice(0, index + 1).reduce((sum, w) => sum + w.layers, 0) - 1}
                     </div>
                   )}
                 </div>
@@ -221,17 +403,22 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
           
           {isExpanded && (
             <div className="pt-3 border-t space-y-2">
-              <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="grid grid-cols-3 gap-4 text-xs">
                 <div>
                   <span className="text-muted-foreground">Total Memory</span>
-                  <div className="font-medium">{workers.length * 30}GB</div>
+                  <div className="font-medium">{totalMemory}GB</div>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Avg Utilization</span>
-                  <div className="font-medium">
-                    {Math.round(workers.reduce((sum, w) => sum + w.utilization, 0) / workers.length)}%
-                  </div>
+                  <span className="text-muted-foreground">Total Layers</span>
+                  <div className="font-medium">{totalLayers}</div>
                 </div>
+                <div>
+                  <span className="text-muted-foreground">Architecture</span>
+                  <div className="font-medium">Waterfall</div>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Layer distribution: {workers.map(w => `${w.layers}`).join(' + ')} = {totalLayers}
               </div>
             </div>
           )}

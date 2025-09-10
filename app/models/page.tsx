@@ -132,6 +132,7 @@ export default function ModelsPage() {
 
   const generateCurlExample = (model: TandemnModel) => {
     const apiKey = getApiKeyPrefix();
+    const domain = getApiDomain(); // Move domain declaration to top
     
     // Model-specific curl commands based on deployment specifications
     const modelEndpoints = {
@@ -148,6 +149,18 @@ export default function ModelsPage() {
           top_p: 0.9,
           max_completion_tokens: 2000
         }
+      },
+      'casperhansen/llama-3.3-70b-instruct-awq': {
+        url: `${domain}/api/v1/chat/complete`, // Uses API routing instead of direct endpoint
+        body: {
+          model: 'casperhansen/llama-3.3-70b-instruct-awq',
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant' },
+            { role: 'user', content: 'Hello! Can you explain quantum computing?' }
+          ],
+          stream: false // Currently non-streaming
+        },
+        needsAuth: true
       },
       'Qwen/Qwen3-32B-AWQ': {
         url: 'http://3.91.251.0:8000/v1/chat/completions',
@@ -195,15 +208,25 @@ Your primary role is to assist users by executing commands, modifying code, and 
     const endpoint = modelEndpoints[model.id as keyof typeof modelEndpoints];
     
     if (endpoint) {
+      const headers = [
+        'Accept: text/event-stream',
+        'Cache-Control: no-cache', 
+        'Content-Type: application/json'
+      ];
+      
+      // Add authorization header for models that need it
+      if ('needsAuth' in endpoint && endpoint.needsAuth) {
+        headers.splice(0, 0, `Authorization: Bearer ${apiKey}`);
+      }
+      
+      const headerString = headers.map(h => `--header '${h}'`).join(' \\\n');
+      
       return `curl --location '${endpoint.url}' \\
---header 'Accept: text/event-stream' \\
---header 'Cache-Control: no-cache' \\
---header 'Content-Type: application/json' \\
+${headerString} \\
 --data '${JSON.stringify(endpoint.body, null, 2)}'`;
     }
     
     // Fallback for other models
-    const domain = getApiDomain();
     return `curl -X POST ${domain}/api/v1/chat/complete \\
   -H "Authorization: Bearer ${apiKey}" \\
   -H "Content-Type: application/json" \\
