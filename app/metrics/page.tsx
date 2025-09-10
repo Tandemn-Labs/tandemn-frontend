@@ -7,8 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
-import { Calendar, TrendingUp, DollarSign, MessageSquare, Clock, Server, Zap } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { Calendar, TrendingUp, DollarSign, MessageSquare, Clock } from 'lucide-react';
 
 interface MetricsData {
   summary: {
@@ -16,11 +16,7 @@ interface MetricsData {
     totalTokens: number;
     totalCost: number;
     averageProcessingTime: number;
-    requestsByBackend: {
-      tandemn: number;
-      openrouter: number;
-      mock: number;
-    };
+    // Backend information hidden from user metrics
     requestsByModel: Array<{
       modelId: string;
       count: number;
@@ -40,7 +36,7 @@ interface MetricsData {
     modelId: string;
     inputText: string;
     responseText: string;
-    backendUsed: string;
+    // backendUsed: string; // Hidden from user view
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
@@ -52,7 +48,7 @@ interface MetricsData {
   }>;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+// Color constants removed - no longer needed
 
 export default function MetricsPage() {
   const { user, isSignedIn } = useUser();
@@ -61,7 +57,7 @@ export default function MetricsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     modelId: '',
-    backendUsed: '',
+    // backendUsed: '', // Hidden from user
     startDate: '',
     endDate: '',
   });
@@ -73,7 +69,7 @@ export default function MetricsPage() {
       
       const params = new URLSearchParams();
       if (filters.modelId) params.append('modelId', filters.modelId);
-      if (filters.backendUsed) params.append('backendUsed', filters.backendUsed);
+      // Backend filter removed from user interface
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
 
@@ -95,7 +91,7 @@ export default function MetricsPage() {
     if (isSignedIn) {
       fetchMetrics();
     }
-  }, [isSignedIn, filters]);
+  }, [isSignedIn, filters]); // Backend filters removed from user interface
 
   if (!isSignedIn) {
     return (
@@ -142,11 +138,7 @@ export default function MetricsPage() {
     );
   }
 
-  const backendData = [
-    { name: 'Tandemn', value: metrics.summary.requestsByBackend.tandemn, color: '#0088FE' },
-    { name: 'OpenRouter', value: metrics.summary.requestsByBackend.openrouter, color: '#00C49F' },
-    { name: 'Mock', value: metrics.summary.requestsByBackend.mock, color: '#FFBB28' },
-  ];
+  // Backend data removed from user view
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -163,7 +155,7 @@ export default function MetricsPage() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium">Model</label>
               <Input
@@ -172,20 +164,7 @@ export default function MetricsPage() {
                 onChange={(e) => setFilters({ ...filters, modelId: e.target.value })}
               />
             </div>
-            <div>
-              <label className="text-sm font-medium">Backend</label>
-              <Select value={filters.backendUsed || "all"} onValueChange={(value) => setFilters({ ...filters, backendUsed: value === "all" ? "" : value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All backends" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All backends</SelectItem>
-                  <SelectItem value="tandemn">Tandemn</SelectItem>
-                  <SelectItem value="openrouter">OpenRouter</SelectItem>
-                  <SelectItem value="mock">Mock</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Backend filter removed from user interface */}
             <div>
               <label className="text-sm font-medium">Start Date</label>
               <Input
@@ -250,35 +229,9 @@ export default function MetricsPage() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Backend Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Requests by Backend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={backendData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {backendData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 gap-8 mb-8">
+        {/* Backend Distribution - Removed from user view */}
+        
         {/* Daily Activity */}
         <Card>
           <CardHeader>
@@ -430,24 +383,7 @@ export default function MetricsPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-2">
                     <Badge variant="outline">{response.modelId}</Badge>
-                    <Badge variant={response.backendUsed === 'tandemn' ? 'default' : 'secondary'}>
-                      {response.backendUsed === 'tandemn' ? (
-                        <>
-                          <Server className="h-3 w-3 mr-1" />
-                          Tandemn
-                        </>
-                      ) : response.backendUsed === 'openrouter' ? (
-                        <>
-                          <Zap className="h-3 w-3 mr-1" />
-                          OpenRouter
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="h-3 w-3 mr-1" />
-                          Mock
-                        </>
-                      )}
-                    </Badge>
+                    {/* Backend badge removed from user view */}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {new Date(response.timestamp).toLocaleString()}
