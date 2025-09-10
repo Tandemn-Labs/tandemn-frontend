@@ -18,7 +18,7 @@ export const TANDEMN_MODELS: TandemnModel[] = [
     id: "casperhansen/llama-3.3-70b-instruct-awq",
     name: "Llama 3.3 70B Instruct (AWQ)",
     provider: "Tandemn",
-    description: "The M131072eta Llama 3.3 multilingual large language model (LLM) is a pretrained and instruction tuned generative model in 70B (text in/text out). The Llama 3.3 instruction tuned text only model is optimized for multilingual dialogue use cases and outperforms many of the available open source and closed chat models on common industry benchmarks. Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai.",
+    description: "The Meta Llama 3.3 multilingual large language model (LLM) is a pretrained and instruction tuned generative model in 70B (text in/text out). The Llama 3.3 instruction tuned text only model is optimized for multilingual dialogue use cases and outperforms many of the available open source and closed chat models on common industry benchmarks. Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai.",
     context_length: 8192 ,
     input_price_per_1m: 0.038,   // $0.80 per 1M input tokens
     output_price_per_1m: 0.12,  // $0.80 per 1M output tokens

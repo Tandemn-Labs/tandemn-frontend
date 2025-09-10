@@ -462,16 +462,16 @@ function ChatPageContent() {
                       }}
                       disabled={isStreaming}
                     >
-                      <SelectTrigger className="w-[280px]">
+                      <SelectTrigger className="min-w-[320px] max-w-[600px] w-auto">
                         <SelectValue placeholder="Select a model">
                           {currentModel ? (
-                            <div className="flex items-center space-x-2">
-                              <span className="font-medium">{currentModel.name}</span>
-                              <div className="flex space-x-1">
-                                <Badge variant="secondary" className="text-xs">
+                            <div className="flex items-center space-x-2 w-full">
+                              <span className="font-medium truncate flex-shrink-0">{currentModel.name}</span>
+                              <div className="flex space-x-1 flex-shrink-0">
+                                <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                   In: ${currentModel.promptPrice.toFixed(3)}
                                 </Badge>
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs whitespace-nowrap">
                                   Out: ${currentModel.completionPrice.toFixed(3)}
                                 </Badge>
                               </div>
@@ -481,23 +481,23 @@ function ChatPageContent() {
                           )}
                         </SelectValue>
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="min-w-[320px] max-w-[600px]">
                         {models.map((model) => (
                           <SelectItem key={model.id} value={model.id}>
-                            <div className="flex items-center justify-between w-full">
-                              <div className="flex items-center space-x-2">
-                                <span className="font-medium">{model.name}</span>
-                                <div className="flex space-x-1">
-                                  <Badge variant="secondary" className="text-xs">
+                            <div className="flex items-center justify-between w-full min-w-0">
+                              <div className="flex items-center space-x-2 min-w-0 flex-1">
+                                <span className="font-medium truncate flex-shrink-0">{model.name}</span>
+                                <div className="flex space-x-1 flex-shrink-0">
+                                  <Badge variant="secondary" className="text-xs whitespace-nowrap">
                                     In: ${model.promptPrice.toFixed(3)}
                                   </Badge>
-                                  <Badge variant="outline" className="text-xs">
+                                  <Badge variant="outline" className="text-xs whitespace-nowrap">
                                     Out: ${model.completionPrice.toFixed(3)}
                                   </Badge>
                                 </div>
                               </div>
                               {currentModel?.id === model.id && (
-                                <Check className="h-4 w-4 ml-2" />
+                                <Check className="h-4 w-4 ml-2 flex-shrink-0" />
                               )}
                             </div>
                           </SelectItem>

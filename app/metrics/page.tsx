@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Calendar, TrendingUp, DollarSign, MessageSquare, Clock } from 'lucide-react';
+import { Calendar, TrendingUp, DollarSign, MessageSquare, Clock, History, ArrowUpRight, ArrowDownLeft, Zap, Activity } from 'lucide-react';
+import { type Transaction } from '@/lib/credits-client';
 
 interface MetricsData {
   summary: {
@@ -55,6 +56,8 @@ export default function MetricsPage() {
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
   const [filters, setFilters] = useState({
     modelId: '',
     // backendUsed: '', // Hidden from user
@@ -87,9 +90,25 @@ export default function MetricsPage() {
     }
   };
 
+  const fetchTransactions = async () => {
+    try {
+      setTransactionsLoading(true);
+      const response = await fetch('/api/credits/transactions');
+      if (response.ok) {
+        const data = await response.json();
+        setTransactions(data.transactions || []);
+      }
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isSignedIn) {
       fetchMetrics();
+      fetchTransactions();
     }
   }, [isSignedIn, filters]); // Backend filters removed from user interface
 
@@ -139,6 +158,28 @@ export default function MetricsPage() {
   }
 
   // Backend data removed from user view
+
+  // Transaction helper functions
+  const getTransactionIcon = (transaction: Transaction) => {
+    switch (transaction.type) {
+      case 'credit_purchase':
+        return <ArrowDownLeft className="h-4 w-4 text-green-500" />;
+      case 'usage_charge':
+        return <ArrowUpRight className="h-4 w-4 text-red-500" />;
+      case 'bonus_credit':
+        return <Zap className="h-4 w-4 text-blue-500" />;
+      default:
+        return <Activity className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const formatTransactionDescription = (transaction: Transaction) => {
+    if (transaction.metadata?.modelId) {
+      const { modelId, inputTokens, outputTokens } = transaction.metadata;
+      return `${modelId} (${inputTokens || 0} input, ${outputTokens || 0} output tokens)`;
+    }
+    return transaction.description;
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -403,6 +444,88 @@ export default function MetricsPage() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Transaction History */}
+      <Card className="mt-8">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Transaction History
+              </CardTitle>
+              <CardDescription>
+                Detailed record of all API usage and credit purchases
+              </CardDescription>
+            </div>
+            <Badge variant="outline">{transactions.length} total</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {transactionsLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="h-8 w-8 bg-muted animate-pulse rounded-full"></div>
+                    <div className="space-y-2">
+                      <div className="h-4 w-48 bg-muted animate-pulse rounded"></div>
+                      <div className="h-3 w-32 bg-muted animate-pulse rounded"></div>
+                    </div>
+                  </div>
+                  <div className="h-6 w-16 bg-muted animate-pulse rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="text-center py-12">
+              <History className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground mb-2">No transactions yet</p>
+              <p className="text-sm text-muted-foreground">
+                Start using the API to see your transaction history
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {transactions.slice(0, 50).map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      {getTransactionIcon(transaction)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">
+                        {formatTransactionDescription(transaction)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(transaction.createdAt).toLocaleString()}
+                      </p>
+                      {transaction.metadata?.cost && (
+                        <p className="text-xs text-muted-foreground">
+                          Cost: ${transaction.metadata.cost.toFixed(4)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className={`font-semibold text-sm ${
+                      transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(4)}
+                    </p>
+                    <Badge 
+                      variant={transaction.status === 'completed' ? 'default' : 'secondary'}
+                      className="text-xs"
+                    >
+                      {transaction.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
