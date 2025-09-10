@@ -104,16 +104,12 @@ export async function POST(request: NextRequest) {
 
     try {
       // Make request to the model's specific endpoint
+      // Note: These vLLM backends always return streaming responses regardless of stream parameter
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        'Cache-Control': 'no-cache',
       };
-
-      if (stream) {
-        headers['Accept'] = 'text/event-stream';
-        headers['Cache-Control'] = 'no-cache';
-      } else {
-        headers['Accept'] = 'application/json';
-      }
 
       const response = await fetch(endpointConfig.endpoint, {
         method: 'POST',
@@ -235,16 +231,78 @@ export async function POST(request: NextRequest) {
           },
         });
       } else {
-        // Handle non-streaming response
-        const result = await response.json();
+        // Handle non-streaming response by collecting all streaming chunks
+        // Since the backend always returns streaming, we need to convert it
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (!reader) {
+          return NextResponse.json(
+            { error: 'Failed to get response stream' },
+            { status: 500 }
+          );
+        }
+
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        let fullContent = '';
+        let responseId = '';
+        let responseCreated = 0;
+
+        try {
+          let buffer = '';
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              
+              if (trimmedLine === '' || trimmedLine === 'data: [DONE]') continue;
+              if (!trimmedLine.startsWith('data: ')) continue;
+              
+              try {
+                const jsonData = trimmedLine.slice(6);
+                const chunk = JSON.parse(jsonData);
+                
+                // Store response metadata
+                if (chunk.id) responseId = chunk.id;
+                if (chunk.created) responseCreated = chunk.created;
+                
+                // Extract token usage from chunk if available
+                if (chunk.usage) {
+                  totalInputTokens = chunk.usage.prompt_tokens || totalInputTokens;
+                  totalOutputTokens = chunk.usage.completion_tokens || totalOutputTokens;
+                }
+                
+                // Accumulate content
+                if (chunk.choices?.[0]?.delta?.content) {
+                  fullContent += chunk.choices[0].delta.content;
+                }
+              } catch (parseError) {
+                // Ignore parse errors
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
+
+        // Estimate tokens if not provided by backend
+        if (totalInputTokens === 0) totalInputTokens = estimatedInputTokens;
+        if (totalOutputTokens === 0) totalOutputTokens = Math.ceil(fullContent.length / 4);
         
-        // Extract token usage from response
-        const inputTokens = result.usage?.prompt_tokens || estimatedInputTokens;
-        const outputTokens = result.usage?.completion_tokens || Math.ceil((result.choices?.[0]?.message?.content?.length || 0) / 4);
-        const totalTokens = inputTokens + outputTokens;
+        const totalTokens = totalInputTokens + totalOutputTokens;
         
         // Calculate actual cost
-        const actualCost = calculateCost(model, inputTokens, outputTokens);
+        const actualCost = calculateCost(model, totalInputTokens, totalOutputTokens);
         
         // Charge user for actual usage
         const chargeSuccess = await deductCredits(userId, actualCost);
@@ -263,29 +321,50 @@ export async function POST(request: NextRequest) {
           status: 'completed',
           metadata: {
             model,
-            input_tokens: inputTokens,
-            output_tokens: outputTokens,
+            input_tokens: totalInputTokens,
+            output_tokens: totalOutputTokens,
             total_tokens: totalTokens
           }
         });
         
-        // Add Tandemn-specific billing info to response
-        result.billing = {
-          credits_charged: actualCost,
-          credits_remaining: userBalance - actualCost,
-          input_cost: Math.round(((inputTokens / 1000000) * modelInfo.input_price_per_1m) * 10000) / 10000,
-          output_cost: Math.round(((outputTokens / 1000000) * modelInfo.output_price_per_1m) * 10000) / 10000,
-          pricing: {
-            input_price_per_1m_tokens: modelInfo.input_price_per_1m,
-            output_price_per_1m_tokens: modelInfo.output_price_per_1m,
+        // Return OpenAI-compatible non-streaming response
+        const result = {
+          id: responseId || `chatcmpl-${Date.now()}`,
+          object: 'chat.completion',
+          created: responseCreated || Math.floor(Date.now() / 1000),
+          model: model,
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: fullContent,
+              },
+              finish_reason: 'stop',
+            },
+          ],
+          usage: {
+            prompt_tokens: totalInputTokens,
+            completion_tokens: totalOutputTokens,
+            total_tokens: totalTokens,
           },
-        };
-        
-        result.model_info = {
-          provider: modelInfo.provider,
-          context_length: modelInfo.context_length,
-          capabilities: modelInfo.capabilities,
-          max_tokens: modelInfo.max_tokens
+          // Tandemn-specific billing info
+          billing: {
+            credits_charged: actualCost,
+            credits_remaining: userBalance - actualCost,
+            input_cost: Math.round(((totalInputTokens / 1000000) * modelInfo.input_price_per_1m) * 10000) / 10000,
+            output_cost: Math.round(((totalOutputTokens / 1000000) * modelInfo.output_price_per_1m) * 10000) / 10000,
+            pricing: {
+              input_price_per_1m_tokens: modelInfo.input_price_per_1m,
+              output_price_per_1m_tokens: modelInfo.output_price_per_1m,
+            },
+          },
+          model_info: {
+            provider: modelInfo.provider,
+            context_length: modelInfo.context_length,
+            capabilities: modelInfo.capabilities,
+            max_tokens: modelInfo.max_tokens
+          }
         };
         
         return NextResponse.json(result);
