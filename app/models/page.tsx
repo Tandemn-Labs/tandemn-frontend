@@ -132,110 +132,32 @@ export default function ModelsPage() {
 
   const generateCurlExample = (model: TandemnModel) => {
     const apiKey = getApiKeyPrefix();
-    const domain = getApiDomain(); // Move domain declaration to top
+    const domain = getApiDomain();
     
-    // Model-specific curl commands based on deployment specifications
-    const modelEndpoints = {
-      'casperhansen/deepseek-r1-distill-llama-70b-awq': {
-        url: 'http://34.207.103.140:8000/v1/chat/completions',
-        body: {
-          model: 'casperhansen/deepseek-r1-distill-llama-70b-awq',
-          messages: [
-            { role: 'system', content: 'You are a helpful assistant' },
-            { role: 'user', content: 'MY CONTENT HERE' }
-          ],
-          stream: true,
-          temperature: 0.6,
-          top_p: 0.9,
-          max_completion_tokens: 2000
-        }
-      },
-      'casperhansen/llama-3.3-70b-instruct-awq': {
-        url: `${domain}/api/v1/chat/complete`, // Uses API routing instead of direct endpoint
-        body: {
-          model: 'casperhansen/llama-3.3-70b-instruct-awq',
-          messages: [
-            { role: 'system', content: 'You are a helpful assistant' },
-            { role: 'user', content: 'Hello! Can you explain quantum computing?' }
-          ],
-          stream: false // Currently non-streaming
-        },
-        needsAuth: true
-      },
-      'Qwen/Qwen3-32B-AWQ': {
-        url: 'http://3.91.251.0:8000/v1/chat/completions',
-        body: {
-          model: 'Qwen/Qwen3-32B-AWQ',
-          messages: [
-            { role: 'system', content: 'You are a helpful assistant /no_think' },
-            { role: 'user', content: 'Generate a long story on frog' }
-          ],
-          stream: true,
-          temperature: 0.7,
-          top_k: 20,
-          top_p: 0.8,
-          min_p: 0,
-          max_completion_tokens: 2000
-        }
-      },
-      'btbtyler09/Devstral-Small-2507-AWQ': {
-        url: 'http://98.87.8.56:8000/v1/chat/completions',
-        body: {
-          model: 'btbtyler09/Devstral-Small-2507-AWQ',
-          messages: [
-            {
-              role: 'system',
-              content: `You are Devstral, a helpful agentic model trained by Mistral AI and using the OpenHands scaffold. You can interact with a computer to solve tasks.
-
-<ROLE>
-Your primary role is to assist users by executing commands, modifying code, and solving technical problems effectively. You should be thorough, methodical, and prioritize quality over speed.
-* If the user asks a question, like "why is X happening", don't try to fix the problem. Just give an answer to the question.
-</ROLE>
-
-<EFFICIENCY>
-* Each action you take is somewhat expensive. Wherever possible, combine multiple actions into a single action, e.g. combine multiple bash commands into one, using sed and grep to edit/view multiple files at once.
-* When exploring the codebase, use efficient tools like find, grep, and git commands with appropriate filters to minimize unnecessary operations.
-</EFFICIENCY>`
-            },
-            { role: 'user', content: 'Give me the python code for hello world' }
-          ],
-          stream: true,
-          max_completion_tokens: 100
-        }
-      }
+    // All models use the same gateway endpoint
+    const body = {
+      model: model.id,
+      messages: [
+        { role: 'system', content: 'You are a helpful assistant' },
+        { role: 'user', content: 'Hello! Can you explain quantum computing?' }
+      ],
+      stream: true,
+      temperature: 0.7,
+      max_completion_tokens: 2000
     };
 
-    const endpoint = modelEndpoints[model.id as keyof typeof modelEndpoints];
+    const headers = [
+      `Authorization: Bearer ${apiKey}`,
+      'Accept: text/event-stream',
+      'Cache-Control: no-cache', 
+      'Content-Type: application/json'
+    ];
     
-    if (endpoint) {
-      const headers = [
-        'Accept: text/event-stream',
-        'Cache-Control: no-cache', 
-        'Content-Type: application/json'
-      ];
-      
-      // Add authorization header for models that need it
-      if ('needsAuth' in endpoint && endpoint.needsAuth) {
-        headers.splice(0, 0, `Authorization: Bearer ${apiKey}`);
-      }
-      
-      const headerString = headers.map(h => `--header '${h}'`).join(' \\\n');
-      
-      return `curl --location '${endpoint.url}' \\
+    const headerString = headers.map(h => `--header '${h}'`).join(' \\\n');
+    
+    return `curl --location '${domain}/api/v1/chat/complete' \\
 ${headerString} \\
---data '${JSON.stringify(endpoint.body, null, 2)}'`;
-    }
-    
-    // Fallback for other models
-    return `curl -X POST ${domain}/api/v1/chat/complete \\
-  -H "Authorization: Bearer ${apiKey}" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "model": "${model.id}",
-    "messages": [
-      {"role": "user", "content": "Hello! Can you explain quantum computing?"}
-    ]
-  }'`;
+--data '${JSON.stringify(body, null, 2)}'`;
   };
 
   const generatePythonExample = (model: TandemnModel) => {
