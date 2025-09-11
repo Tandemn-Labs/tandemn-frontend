@@ -9,6 +9,7 @@ export interface ModelEndpointConfig {
     top_k?: number;
     min_p?: number;
     max_completion_tokens: number;
+    eos_token_id?: number[];
   };
 }
 
@@ -19,7 +20,8 @@ export const MODEL_ENDPOINTS: ModelEndpointConfig[] = [
     requestParams: {
       temperature: 0.6,
       top_p: 0.9,
-      max_completion_tokens: 2000
+      max_completion_tokens: 2000,
+      eos_token_id: [128001]
     }
   },
   {
@@ -31,7 +33,8 @@ export const MODEL_ENDPOINTS: ModelEndpointConfig[] = [
       top_k: 20,
       top_p: 0.8,
       min_p: 0,
-      max_completion_tokens: 2000
+      max_completion_tokens: 2000,
+      eos_token_id: [151645, 151643]
     }
   },
   {
@@ -112,7 +115,8 @@ Your primary role is to assist users by executing commands, modifying code, and 
 </TROUBLESHOOTING>`,
     requestParams: {
       temperature: 0.7,
-      max_completion_tokens: 100
+      max_completion_tokens: 2000,
+      eos_token_id: [2]
     }
   },
   {
@@ -121,7 +125,8 @@ Your primary role is to assist users by executing commands, modifying code, and 
     requestParams: {
       temperature: 0.6,
       top_p: 0.9,
-      max_completion_tokens: 2000
+      max_completion_tokens: 2000,
+      eos_token_id: [128001]
     }
   }
 ];

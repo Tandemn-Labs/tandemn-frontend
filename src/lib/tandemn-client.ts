@@ -249,7 +249,9 @@ export class TandemnClient {
                 const filteredContent = content
                   .replace(/<\|eot_id\|>/g, '')
                   .replace(/<\|end\|>/g, '')
-                  .replace(/<\|endoftext\|>/g, '');
+                  .replace(/<\|endoftext\|>/g, '')
+                  .replace(/<\|im_end\|>/g, '')
+                  .replace(/<｜end▁of▁sentence｜>/g, '');
                 
                 if (filteredContent && filteredContent.trim()) {
                   lastContentTime = Date.now();
@@ -447,7 +449,9 @@ export class TandemnClient {
                 const filteredContent = content
                   .replace(/<\|eot_id\|>/g, '')
                   .replace(/<\|end\|>/g, '')
-                  .replace(/<\|endoftext\|>/g, '');
+                  .replace(/<\|endoftext\|>/g, '')
+                  .replace(/<\|im_end\|>/g, '')
+                  .replace(/<｜end▁of▁sentence｜>/g, '');
                 
                 if (filteredContent && filteredContent.trim()) {
                   lastContentTime = Date.now();
@@ -485,6 +489,8 @@ export class TandemnClient {
         .replace(/<\|eot_id\|>/g, '')
         .replace(/<\|end\|>/g, '')
         .replace(/<\|endoftext\|>/g, '')
+        .replace(/<\|im_end\|>/g, '')
+        .replace(/<｜end▁of▁sentence｜>/g, '')
         .trim();
       
       // Convert to Tandemn format
