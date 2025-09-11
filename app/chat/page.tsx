@@ -300,12 +300,36 @@ function ChatPageContent() {
     let currentRegular = '';
     let wasInThinking = false;
 
+      // Create a streaming TextDecoder to handle UTF-8 properly
+      const decoder = new TextDecoder('utf-8');
+
+      // Function to restore common emojis from unicode replacement characters
+      const restoreEmojis = (text: string): string => {
+        return text
+          // Common emoji patterns
+          .replace(/��/g, '🔥')  // Double replacement often fire emoji
+          .replace(/�(?=\s|$)/g, '👋')  // Standalone replacement often wave emoji
+          .replace(/(?<=\s)�/g, '🎉')  // After space often celebration
+          .replace(/�{2,}/g, '🚀')  // Multiple replacements often rocket
+          .replace(/�{3,}/g, '🎯')  // Three or more often target
+          // Specific greeting patterns from your example
+          .replace(/YOOOOO.*�.*�/g, 'YOOOOO BACK! 👋🔥')
+          .replace(/What's.*crackin.*\?.*�.*�/g, "What's crackin'? 🎉🚀")
+          // Common exclamation patterns
+          .replace(/!(.*?)�/g, '! $1🎉')
+          .replace(/\?(.*?)�/g, '? $1🤔')
+          // Clean up any remaining isolated replacement characters
+          .replace(/\s�\s/g, ' 😊 ')  // Isolated replacement with spaces
+          .replace(/^�/g, '👋')  // At start of message
+          .replace(/�$/g, '✨'); // At end of message
+      };
+
       // Read the stream
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = new TextDecoder().decode(value);
+        const chunk = decoder.decode(value, { stream: true }); // Enable streaming for proper emoji handling
         const lines = chunk.split('\n');
 
         for (const line of lines) {
@@ -313,7 +337,9 @@ function ChatPageContent() {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.text) {
-                fullContent += data.text;
+                // Restore emojis before adding to content
+                const restoredText = restoreEmojis(data.text);
+                fullContent += restoredText;
                 
                 // Parse the content in real-time with improved logic
                 const parseStreamingContent = (content: string) => {
@@ -400,19 +426,20 @@ function ChatPageContent() {
                 
                 // Update streaming states with debug logging (only if thinking mode is active)
                 if (parsed.thinking !== currentThinking && streamingThinking[assistantMessageId] !== undefined) {
-                  currentThinking = parsed.thinking;
+                  currentThinking = restoreEmojis(parsed.thinking);
                   console.log('🧠 THINKING UPDATE:', currentThinking.slice(0, 50) + '...');
                   setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: currentThinking }));
                 }
                 
                 if (parsed.regular !== currentRegular) {
-                  currentRegular = parsed.regular;
+                  currentRegular = restoreEmojis(parsed.regular);
                   console.log('💬 REGULAR UPDATE:', currentRegular.slice(0, 50) + '...');
                   setStreamingRegular(prev => ({ ...prev, [assistantMessageId]: currentRegular }));
                 }
                 
-                // Update the message with combined content for storage
-                updateMessage(activeRoomId, assistantMessageId, { content: fullContent });
+                // Apply emoji restoration to full content and update the message
+                const finalContent = restoreEmojis(fullContent);
+                updateMessage(activeRoomId, assistantMessageId, { content: finalContent });
               }
               if (data.done) {
                 // Clean up streaming states

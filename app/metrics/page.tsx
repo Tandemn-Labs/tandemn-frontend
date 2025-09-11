@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Cell } from 'recharts';
 import { Calendar, TrendingUp, DollarSign, MessageSquare, Clock, History, ArrowUpRight, ArrowDownLeft, Zap, Activity } from 'lucide-react';
 import { type Transaction } from '@/lib/credits-client';
 
@@ -286,18 +286,49 @@ export default function MetricsPage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={metrics.summary.requestsByModel}>
+              <BarChart data={metrics.summary.requestsByModel.map((item, index) => ({
+                ...item,
+                shortName: item.modelId.split('/')[1] || item.modelId,
+                color: ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'][index % 7]
+              }))}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
-                  dataKey="modelId" 
-                  angle={-45} 
-                  textAnchor="end" 
-                  height={80}
-                  interval={0}
+                  dataKey="shortName" 
+                  tick={false}
+                  height={20}
                 />
                 <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#8884d8" />
+                <Tooltip 
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-gray-900/90 backdrop-blur-md border border-gray-700/50 rounded-lg p-2 shadow-xl">
+                          <div className="space-y-1">
+                            <p className="font-medium text-xs text-white">{data.modelId}</p>
+                            <div className="flex items-center gap-1">
+                              <div 
+                                className="w-2 h-2 rounded" 
+                                style={{ backgroundColor: data.color }}
+                              />
+                              <span className="text-xs text-gray-300">Requests: <span className="font-medium text-white">{data.count}</span></span>
+                            </div>
+                            <div className="text-xs text-gray-400 space-y-0">
+                              <p>Tokens: {data.totalTokens?.toLocaleString() || 0}</p>
+                              <p>Cost: ${data.totalCost?.toFixed(4) || '0.0000'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar dataKey="count">
+                  {metrics.summary.requestsByModel.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'][index % 7]} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

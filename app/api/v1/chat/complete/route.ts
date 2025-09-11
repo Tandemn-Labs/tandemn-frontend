@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
         // Handle streaming response
         const reader = response.body?.getReader();
         const encoder = new TextEncoder();
-        const decoder = new TextDecoder();
+        const decoder = new TextDecoder('utf-8');
 
         if (!reader) {
           return NextResponse.json(
@@ -252,7 +252,7 @@ export async function POST(request: NextRequest) {
         // Handle non-streaming response by collecting all streaming chunks
         // Since the backend always returns streaming, we need to convert it
         const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
+        const decoder = new TextDecoder('utf-8');
 
         if (!reader) {
           return NextResponse.json(

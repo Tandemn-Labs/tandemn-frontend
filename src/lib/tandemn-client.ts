@@ -172,7 +172,7 @@ export class TandemnClient {
       console.log('✅ TANDEMN: Successfully connected to Tandem backend, processing stream...');
       
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder('utf-8');
       let completeContent = '';
       
       if (!reader) {
@@ -379,7 +379,7 @@ export class TandemnClient {
       console.log('✅ TANDEMN: Successfully connected to Tandem backend, processing stream...');
       
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder('utf-8');
       let completeContent = '';
       
       if (!reader) {
