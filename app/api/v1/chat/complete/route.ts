@@ -203,10 +203,28 @@ export async function POST(request: NextRequest) {
                     
                     // Accumulate content for token estimation
                     if (chunk.choices?.[0]?.delta?.content) {
-                      accumulatedContent += chunk.choices[0].delta.content;
+                      // Filter out end-of-text tokens before accumulating
+                      const filteredContent = chunk.choices[0].delta.content
+                        .replace(/<\|eot_id\|>/g, '')
+                        .replace(/<\|end\|>/g, '')
+                        .replace(/<\|endoftext\|>/g, '')
+                        .replace(/<\|im_end\|>/g, '')
+                        .replace(/<｜end▁of▁sentence｜>/g, '');
+                      
+                      accumulatedContent += filteredContent;
+                      
+                      // Also update the chunk content before sending to client
+                      if (filteredContent !== chunk.choices[0].delta.content) {
+                        chunk.choices[0].delta.content = filteredContent;
+                        // Send the modified chunk instead of original line
+                        const modifiedLine = `data: ${JSON.stringify(chunk)}`;
+                        controller.enqueue(encoder.encode(`${modifiedLine}\n\n`));
+                      } else {
+                        controller.enqueue(encoder.encode(`${trimmedLine}\n\n`));
+                      }
+                    } else {
+                      controller.enqueue(encoder.encode(`${trimmedLine}\n\n`));
                     }
-                    
-                    controller.enqueue(encoder.encode(`${trimmedLine}\n\n`));
                   } catch (parseError) {
                     console.warn('Failed to parse streaming chunk:', trimmedLine);
                     controller.enqueue(encoder.encode(`${trimmedLine}\n\n`));
@@ -284,7 +302,15 @@ export async function POST(request: NextRequest) {
                 
                 // Accumulate content
                 if (chunk.choices?.[0]?.delta?.content) {
-                  fullContent += chunk.choices[0].delta.content;
+                  // Filter out end-of-text tokens before accumulating
+                  const filteredContent = chunk.choices[0].delta.content
+                    .replace(/<\|eot_id\|>/g, '')
+                    .replace(/<\|end\|>/g, '')
+                    .replace(/<\|endoftext\|>/g, '')
+                    .replace(/<\|im_end\|>/g, '')
+                    .replace(/<｜end▁of▁sentence｜>/g, '');
+                  
+                  fullContent += filteredContent;
                 }
               } catch (parseError) {
                 // Ignore parse errors
@@ -295,6 +321,15 @@ export async function POST(request: NextRequest) {
           reader.releaseLock();
         }
 
+        // Final cleanup of any remaining end-of-text tokens
+        fullContent = fullContent
+          .replace(/<\|eot_id\|>/g, '')
+          .replace(/<\|end\|>/g, '')
+          .replace(/<\|endoftext\|>/g, '')
+          .replace(/<\|im_end\|>/g, '')
+          .replace(/<｜end▁of▁sentence｜>/g, '')
+          .trim();
+        
         // Estimate tokens if not provided by backend
         if (totalInputTokens === 0) totalInputTokens = estimatedInputTokens;
         if (totalOutputTokens === 0) totalOutputTokens = Math.ceil(fullContent.length / 4);
