@@ -22,10 +22,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+  } from '@/components/ui/dialog';
+  import { ThinkingMode } from '@/components/thinking-mode';
 import { useRoomsStore } from '@/store/rooms';
 import { ChatRoom, Message, Model } from '@/mock/types';
 import { GPUUtilization } from '@/components/gpu-utilization';
+import { BackendIndicator } from '@/components/backend-indicator';
 import { TandemnHealth } from '@/components/tandemn-health';
 
 function ChatPageContent() {
@@ -66,6 +68,10 @@ function ChatPageContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Thinking mode state for streaming
+  const [streamingThinking, setStreamingThinking] = useState<{[messageId: string]: string}>({});
+  const [streamingRegular, setStreamingRegular] = useState<{[messageId: string]: string}>({});
 
   // AbortController ref for cancelling streaming requests
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -280,6 +286,15 @@ function ChatPageContent() {
 
       addMessage(activeRoomId, assistantMessage);
 
+    // Initialize streaming states
+    setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: '' }));
+    setStreamingRegular(prev => ({ ...prev, [assistantMessageId]: '' }));
+    
+    let fullContent = '';
+    let inThinkTag = false;
+    let currentThinking = '';
+    let currentRegular = '';
+
       // Read the stream
       while (true) {
         const { done, value } = await reader.read();
@@ -293,11 +308,91 @@ function ChatPageContent() {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.text) {
-                assistantContent += data.text;
-                // Update the existing message using the new updateMessage method
-                updateMessage(activeRoomId, assistantMessageId, { content: assistantContent });
+                fullContent += data.text;
+                
+                // Parse the content in real-time with improved logic
+                const parseStreamingContent = (content: string) => {
+                  let tempThinking = '';
+                  let tempRegular = '';
+                  let tempContent = content;
+                  
+                  // Check if we're currently inside a thinking block
+                  const lastOpenThink = tempContent.lastIndexOf('<think>');
+                  const lastCloseThink = tempContent.lastIndexOf('</think>');
+                  const isInThinking = lastOpenThink > lastCloseThink;
+                  
+                  if (isInThinking) {
+                    // Split at the last <think> tag
+                    const beforeThink = tempContent.substring(0, lastOpenThink);
+                    const afterThink = tempContent.substring(lastOpenThink + 7); // +7 for '<think>'
+                    
+                    // Process completed thinking blocks in the before part
+                    let processedBefore = beforeThink;
+                    const completedThinking = processedBefore.match(/<think>([\s\S]*?)<\/think>/g);
+                    if (completedThinking) {
+                      for (const match of completedThinking) {
+                        const thinkContent = match.replace(/<think>/, '').replace(/<\/think>/, '');
+                        tempThinking += thinkContent;
+                        processedBefore = processedBefore.replace(match, '');
+                      }
+                    }
+                    
+                    // Add current streaming thinking content
+                    tempThinking += afterThink;
+                    tempRegular = processedBefore.replace(/<think>/g, '').trim();
+                  } else {
+                    // No active thinking - process all completed blocks
+                    const thinkingMatches = tempContent.match(/<think>([\s\S]*?)<\/think>/g);
+                    if (thinkingMatches) {
+                      for (const match of thinkingMatches) {
+                        const thinkContent = match.replace(/<think>/, '').replace(/<\/think>/, '');
+                        tempThinking += thinkContent;
+                        tempContent = tempContent.replace(match, '');
+                      }
+                    }
+                    tempRegular = tempContent.replace(/<think>/g, '').trim();
+                  }
+                  
+                  return { thinking: tempThinking, regular: tempRegular, isInThinking };
+                };
+                
+                const parsed = parseStreamingContent(fullContent);
+                
+                // Force thinking mode to show if we detect <think> tag
+                if (fullContent.includes('<think>') && !streamingThinking[assistantMessageId]) {
+                  console.log('🧠 THINKING MODE ACTIVATED!');
+                  setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: '' }));
+                }
+                
+                // Update streaming states with debug logging
+                if (parsed.thinking !== currentThinking) {
+                  currentThinking = parsed.thinking;
+                  console.log('🧠 THINKING UPDATE:', currentThinking.slice(0, 50) + '...');
+                  setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: currentThinking }));
+                }
+                
+                if (parsed.regular !== currentRegular) {
+                  currentRegular = parsed.regular;
+                  console.log('💬 REGULAR UPDATE:', currentRegular.slice(0, 50) + '...');
+                  setStreamingRegular(prev => ({ ...prev, [assistantMessageId]: currentRegular }));
+                }
+                
+                // Update the message with combined content for storage
+                updateMessage(activeRoomId, assistantMessageId, { content: fullContent });
               }
               if (data.done) {
+                // Clean up streaming states
+                setStreamingThinking(prev => {
+                  const newState = { ...prev };
+                  delete newState[assistantMessageId];
+                  return newState;
+                });
+                setStreamingRegular(prev => {
+                  const newState = { ...prev };
+                  delete newState[assistantMessageId];
+                  return newState;
+                });
+                
                 setIsStreaming(false);
                 setTimeout(() => setShowGPUUtilization(false), 3000); // Hide after 3 seconds
                 // Refresh user credits after successful API call
@@ -417,12 +512,12 @@ function ChatPageContent() {
                 >
                   <CardContent className="p-3 flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-sm line-clamp-1">
-                        {room.title}
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(room.createdAt).toLocaleDateString()}
-                      </p>
+                    <h3 className="font-medium text-sm line-clamp-1">
+                      {room.title}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(room.createdAt).toLocaleDateString()}
+                    </p>
                     </div>
                     <Button
                       data-delete-button
@@ -520,9 +615,106 @@ function ChatPageContent() {
                   <p>Start a conversation with {currentModel?.name}</p>
                 </div>
               ) : (
-                roomMessages.map((message) => (
-                  <div
-                    key={message.id}
+                roomMessages.map((message) => {
+                  const isLastMessage = roomMessages[roomMessages.length - 1].id === message.id;
+                  
+                  // Check if this message has streaming content
+                  const hasStreamingThinking = streamingThinking[message.id];
+                  const hasStreamingRegular = streamingRegular[message.id];
+                  
+                  // If we have streaming content, use that instead of parsing the stored content
+                  if (isStreaming && isLastMessage && (hasStreamingThinking !== undefined || hasStreamingRegular !== undefined)) {
+                    return (
+                      <div key={message.id} className="space-y-2">
+                        {(hasStreamingThinking !== undefined) && (
+                          <div className="flex justify-start">
+                            <div className="max-w-[85%] md:max-w-[80%]">
+                              <ThinkingMode
+                                content={hasStreamingThinking || ''}
+                                isStreaming={isStreaming}
+                                className="mb-2"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {hasStreamingRegular && (
+                          <div className="flex justify-start">
+                            <div className="max-w-[85%] md:max-w-[80%] p-3 md:p-4 rounded-lg bg-muted">
+                              <p className="text-sm whitespace-pre-wrap">
+                                {hasStreamingRegular}
+                                <span className="animate-pulse">▊</span>
+                              </p>
+                              {message.backend && (
+                                <div className="mt-2 flex justify-end">
+                                  <BackendIndicator 
+                                    backend={message.backend as 'tandemn' | 'openrouter' | 'mock'} 
+                                    className="text-xs"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // Parse thinking content from stored message for completed messages
+                  const parseMessageContent = (content: string) => {
+                    const thinkingRegex = /<think>([\s\S]*?)<\/think>/g;
+                    const parts: Array<{ type: 'text' | 'thinking'; content: string }> = [];
+                    let lastIndex = 0;
+                    let match;
+
+                    while ((match = thinkingRegex.exec(content)) !== null) {
+                      // Add text before thinking tag
+                      if (match.index > lastIndex) {
+                        const textContent = content.slice(lastIndex, match.index).trim();
+                        if (textContent) {
+                          parts.push({ type: 'text', content: textContent });
+                        }
+                      }
+                      // Add thinking content
+                      parts.push({ type: 'thinking', content: match[1].trim() });
+                      lastIndex = match.index + match[0].length;
+                    }
+
+                    // Add remaining text after last thinking tag
+                    if (lastIndex < content.length) {
+                      const textContent = content.slice(lastIndex).trim();
+                      if (textContent) {
+                        parts.push({ type: 'text', content: textContent });
+                      }
+                    }
+
+                    // If no thinking tags found, return the whole content as text
+                    if (parts.length === 0) {
+                      parts.push({ type: 'text', content });
+                    }
+
+                    return parts;
+                  };
+
+                  const messageParts = message.role === 'assistant' ? parseMessageContent(message.content) : [{ type: 'text' as const, content: message.content }];
+
+                  return (
+                    <div key={message.id} className="space-y-2">
+                      {message.role === 'assistant' && messageParts.some(part => part.type === 'thinking') && (
+                        <div className="flex justify-start">
+                          <div className="max-w-[85%] md:max-w-[80%]">
+                            <ThinkingMode
+                              content={messageParts
+                                .filter(part => part.type === 'thinking')
+                                .map(part => part.content)
+                                .join('\n\n')}
+                              isStreaming={false}
+                              className="mb-2"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {messageParts.some(part => part.type === 'text' && part.content.trim()) && (
+                        <div
                     className={`flex ${
                       message.role === 'user' ? 'justify-end' : 'justify-start'
                     }`}
@@ -535,14 +727,25 @@ function ChatPageContent() {
                       }`}
                     >
                       <p className="text-sm whitespace-pre-wrap">
-                        {message.content}
-                        {isStreaming && message.role === 'assistant' && (
-                          <span className="animate-pulse">▊</span>
-                        )}
+                              {messageParts
+                                .filter(part => part.type === 'text')
+                                .map(part => part.content)
+                                .join('\n')}
                       </p>
+                      {message.role === 'assistant' && message.backend && (
+                        <div className="mt-2 flex justify-end">
+                          <BackendIndicator 
+                            backend={message.backend as 'tandemn' | 'openrouter' | 'mock'} 
+                            className="text-xs"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
-                ))
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
 
