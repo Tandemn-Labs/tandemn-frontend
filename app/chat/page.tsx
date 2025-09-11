@@ -71,6 +71,7 @@ function ChatPageContent() {
   // Thinking mode state for streaming
   const [streamingThinking, setStreamingThinking] = useState<{[messageId: string]: string}>({});
   const [streamingRegular, setStreamingRegular] = useState<{[messageId: string]: string}>({});
+  const [thinkingFinished, setThinkingFinished] = useState<{[messageId: string]: boolean}>({});
 
   // AbortController ref for cancelling streaming requests
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -291,14 +292,13 @@ function ChatPageContent() {
 
       addMessage(activeRoomId, assistantMessage);
 
-    // Initialize streaming states
-    setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: '' }));
+    // Initialize only regular content - thinking will be initialized only if <think> detected
     setStreamingRegular(prev => ({ ...prev, [assistantMessageId]: '' }));
     
     let fullContent = '';
-    let inThinkTag = false;
     let currentThinking = '';
     let currentRegular = '';
+    let wasInThinking = false;
 
       // Read the stream
       while (true) {
@@ -325,6 +325,16 @@ function ChatPageContent() {
                   const lastOpenThink = tempContent.lastIndexOf('<think>');
                   const lastCloseThink = tempContent.lastIndexOf('</think>');
                   const isInThinking = lastOpenThink > lastCloseThink;
+                  const hasCompletedThinking = tempContent.includes('</think>');
+                  
+                  // Check if thinking just finished (transition from thinking to regular)
+                  if (!isInThinking && hasCompletedThinking && wasInThinking) {
+                    console.log('🧠 THINKING JUST FINISHED! Transitioning to regular content...');
+                    setThinkingFinished(prev => ({ ...prev, [assistantMessageId]: true }));
+                  }
+                  
+                  // Track if we were in thinking for next iteration
+                  wasInThinking = isInThinking || hasCompletedThinking;
                   
                   if (isInThinking) {
                     // Split at the last <think> tag
@@ -358,19 +368,38 @@ function ChatPageContent() {
                     tempRegular = tempContent.replace(/<think>/g, '').trim();
                   }
                   
-                  return { thinking: tempThinking, regular: tempRegular, isInThinking };
+                  return { thinking: tempThinking, regular: tempRegular, isInThinking, hasCompletedThinking };
                 };
                 
                 const parsed = parseStreamingContent(fullContent);
                 
-                // Force thinking mode to show if we detect <think> tag
-                if (fullContent.includes('<think>') && !streamingThinking[assistantMessageId]) {
-                  console.log('🧠 THINKING MODE ACTIVATED!');
-                  setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: '' }));
+                // Force thinking mode to show if we detect <think> tag, but ignore Qwen's empty thinking blocks
+                if (fullContent.includes('<think>') && streamingThinking[assistantMessageId] === undefined) {
+                  // Special case for Qwen - ignore empty thinking blocks
+                  const isQwen = currentModel?.name.toLowerCase().includes('qwen');
+                  
+                  if (isQwen) {
+                    // Check if Qwen has empty thinking blocks
+                    const emptyThinkingMatches = fullContent.match(/<think>\s*<\/think>/g);
+                    const hasRealThinking = parsed.thinking && parsed.thinking.trim().length > 0;
+                    
+                    if (emptyThinkingMatches && !hasRealThinking) {
+                      console.log('🔕 QWEN: Ignoring empty thinking block(s)');
+                      // Don't activate thinking mode for Qwen empty blocks
+                    } else {
+                      console.log('🧠 QWEN THINKING MODE ACTIVATED! (has real content)');
+                      setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: '' }));
+                      setThinkingFinished(prev => ({ ...prev, [assistantMessageId]: false }));
+                    }
+                  } else {
+                    console.log('🧠 THINKING MODE ACTIVATED!');
+                    setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: '' }));
+                    setThinkingFinished(prev => ({ ...prev, [assistantMessageId]: false }));
+                  }
                 }
                 
-                // Update streaming states with debug logging
-                if (parsed.thinking !== currentThinking) {
+                // Update streaming states with debug logging (only if thinking mode is active)
+                if (parsed.thinking !== currentThinking && streamingThinking[assistantMessageId] !== undefined) {
                   currentThinking = parsed.thinking;
                   console.log('🧠 THINKING UPDATE:', currentThinking.slice(0, 50) + '...');
                   setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: currentThinking }));
@@ -393,6 +422,11 @@ function ChatPageContent() {
                   return newState;
                 });
                 setStreamingRegular(prev => {
+                  const newState = { ...prev };
+                  delete newState[assistantMessageId];
+                  return newState;
+                });
+                setThinkingFinished(prev => {
                   const newState = { ...prev };
                   delete newState[assistantMessageId];
                   return newState;
@@ -626,6 +660,7 @@ function ChatPageContent() {
                   // Check if this message has streaming content
                   const hasStreamingThinking = streamingThinking[message.id];
                   const hasStreamingRegular = streamingRegular[message.id];
+                  const isThinkingFinished = thinkingFinished[message.id];
                   
                   // If we have streaming content, use that instead of parsing the stored content
                   if (isStreaming && isLastMessage && (hasStreamingThinking !== undefined || hasStreamingRegular !== undefined)) {
@@ -636,7 +671,8 @@ function ChatPageContent() {
                             <div className="max-w-[85%] md:max-w-[80%]">
                               <ThinkingMode
                                 content={hasStreamingThinking || ''}
-                                isStreaming={isStreaming}
+                                isStreaming={!isThinkingFinished}
+                                isFinished={isThinkingFinished}
                                 className="mb-2"
                               />
                             </div>
@@ -713,6 +749,7 @@ function ChatPageContent() {
                                 .map(part => part.content)
                                 .join('\n\n')}
                               isStreaming={false}
+                              isFinished={true}
                               className="mb-2"
                             />
                           </div>

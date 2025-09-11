@@ -8,26 +8,26 @@ import { cn } from '@/lib/utils';
 interface ThinkingModeProps {
   content: string;
   isStreaming: boolean;
+  isFinished?: boolean;
   className?: string;
 }
 
-export function ThinkingMode({ content, isStreaming, className }: ThinkingModeProps) {
+export function ThinkingMode({ content, isStreaming, isFinished = false, className }: ThinkingModeProps) {
   // Auto-collapse when thinking is finished
   const [isExpanded, setIsExpanded] = useState(isStreaming);
   
-  // Collapse automatically when streaming stops
+  // Collapse automatically when thinking finishes (but keep component visible)
   React.useEffect(() => {
-    if (!isStreaming && content) {
+    if (isFinished) {
+      console.log('🧠 THINKING FINISHED - Auto-collapsing...');
       setIsExpanded(false);
     }
-  }, [isStreaming, content]);
+  }, [isFinished]);
 
-  // Show the component if we have content OR if we're actively streaming
-  if (!content && !isStreaming) {
+  // Show the component if we have content OR if we're actively streaming OR if thinking finished
+  if (!content && !isStreaming && !isFinished) {
     return null;
   }
-
-  const isFinished = !isStreaming && content;
 
   return (
     <div className={cn(
@@ -50,7 +50,7 @@ export function ThinkingMode({ content, isStreaming, className }: ThinkingModePr
           <span className="text-sm">
             {isStreaming ? 'Thinking' : (isFinished ? 'Thinking Finished' : 'Thought process')}
           </span>
-          {isStreaming && (
+          {isStreaming && !isFinished && (
             <Loader2 className="h-3 w-3 animate-spin ml-1" />
           )}
         </Button>
@@ -74,7 +74,7 @@ export function ThinkingMode({ content, isStreaming, className }: ThinkingModePr
         
         {!isExpanded && (
           <div className="text-xs text-white/70 italic">
-            {isFinished ? (
+            {isFinished || (!isStreaming && content) ? (
               <span className="flex items-center gap-1">
                 <Brain className="h-3 w-3" />
                 Thinking Finished
