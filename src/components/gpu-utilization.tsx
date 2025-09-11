@@ -11,7 +11,6 @@ interface GPUWorker {
   id: string;
   name: string;
   type: string;
-  memory: string;
   layers: number;
   location: string;
   utilization: number;
@@ -34,52 +33,52 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
       case 'deepseek':
         return [
           {
-            id: 'l40s-1', name: 'L40S-1', type: 'L40S', memory: '48GB', layers: 23,
-            location: 'Nakano City, Japan', utilization: 0, status: 'idle'
+            id: 'l40s-1', name: 'L40S-1', type: 'L40S', layers: 23,
+            location: 'N Virginia', utilization: 0, status: 'idle'
           },
           {
-            id: 'l40s-2', name: 'L40S-2', type: 'L40S', memory: '48GB', layers: 23,
-            location: 'Yotsukaido, Japan', utilization: 0, status: 'idle'
+            id: 'l40s-2', name: 'L40S-2', type: 'L40S', layers: 23,
+            location: 'N California', utilization: 0, status: 'idle'
           },
           {
-            id: 'l40s-3', name: 'L40S-3', type: 'L40S', memory: '48GB', layers: 22,
-            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+            id: 'l40s-3', name: 'L40S-3', type: 'L40S', layers: 22,
+            location: 'Ohio', utilization: 0, status: 'idle'
           },
           {
-            id: 'a10g-1', name: 'A10G-1', type: 'A10G', memory: '24GB', layers: 12,
-            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+            id: 'a10g-1', name: 'A10G-1', type: 'A10G', layers: 12,
+            location: 'Ohio', utilization: 0, status: 'idle'
           }
         ];
       
       case 'qwen':
         return [
           {
-            id: 'l40-1', name: 'L40-1', type: 'L40', memory: '48GB', layers: 32,
-            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+            id: 'l40-1', name: 'L40-1', type: 'L40', layers: 32,
+            location: 'Ohio', utilization: 0, status: 'idle'
           },
           {
-            id: 'a10g-1', name: 'A10G-1', type: 'A10G', memory: '24GB', layers: 16,
-            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+            id: 'a10g-1', name: 'A10G-1', type: 'A10G', layers: 16,
+            location: 'Ohio', utilization: 0, status: 'idle'
           },
           {
-            id: 'a10g-2', name: 'A10G-2', type: 'A10G', memory: '24GB', layers: 16,
-            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+            id: 'a10g-2', name: 'A10G-2', type: 'A10G', layers: 16,
+            location: 'Ohio', utilization: 0, status: 'idle'
           }
         ];
       
       case 'devstral':
         return [
           {
-            id: 'a10g-1', name: 'A10G-1', type: 'A10G', memory: '24GB', layers: 13,
-            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+            id: 'a10g-1', name: 'A10G-1', type: 'A10G', layers: 13,
+            location: 'Ohio', utilization: 0, status: 'idle'
           },
           {
-            id: 'a10g-2', name: 'A10G-2', type: 'A10G', memory: '24GB', layers: 13,
-            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+            id: 'a10g-2', name: 'A10G-2', type: 'A10G', layers: 13,
+            location: 'Ohio', utilization: 0, status: 'idle'
           },
           {
-            id: 'l4-1', name: 'L4-1', type: 'L4', memory: '24GB', layers: 13,
-            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+            id: 'l4-1', name: 'L4-1', type: 'L4', layers: 13,
+            location: 'Ohio', utilization: 0, status: 'idle'
           }
         ];
       
@@ -87,16 +86,16 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
       default:
         return [
           {
-            id: 'l40-1', name: 'L40-1', type: 'L40', memory: '48GB', layers: 27,
-            location: 'Nakano City, Japan', utilization: 0, status: 'idle'
+            id: 'l40-1', name: 'L40-1', type: 'L40', layers: 27,
+            location: 'N Virginia', utilization: 0, status: 'idle'
           },
           {
-            id: 'l40-2', name: 'L40-2', type: 'L40', memory: '48GB', layers: 27,
-            location: 'Yotsukaido, Japan', utilization: 0, status: 'idle'
+            id: 'l40-2', name: 'L40-2', type: 'L40', layers: 27,
+            location: 'N California', utilization: 0, status: 'idle'
           },
           {
-            id: 'l40-3', name: 'L40-3', type: 'L40', memory: '48GB', layers: 26,
-            location: 'Tokyo, Japan', utilization: 0, status: 'idle'
+            id: 'l40-3', name: 'L40-3', type: 'L40', layers: 26,
+            location: 'Ohio', utilization: 0, status: 'idle'
           }
         ];
     }
@@ -268,7 +267,6 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
 
   // Calculate total layers for the model
   const totalLayers = workers.reduce((sum, w) => sum + w.layers, 0);
-  const totalMemory = workers.reduce((sum, w) => sum + parseInt(w.memory), 0);
 
   if (!isVisible) return null;
 
@@ -322,7 +320,7 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
                 GPU Cluster
               </CardTitle>
               <CardDescription className="text-xs mt-1">
-                {modelName} • {totalLayers} layers • {totalMemory}GB
+                {modelName} • {totalLayers} layers
               </CardDescription>
             </div>
             <Button
@@ -366,7 +364,7 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
                       {worker.name} • {worker.type}
                     </span>
                     <span className="text-muted-foreground">
-                      {worker.memory} • {worker.layers} layers
+                      {worker.layers} layers
                     </span>
                   </div>
                   <Badge 
@@ -396,21 +394,7 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
           </div>
           
           {isExpanded && (
-            <div className="pt-3 border-t space-y-2">
-              <div className="grid grid-cols-3 gap-4 text-xs">
-                <div>
-                  <span className="text-muted-foreground">Total Memory</span>
-                  <div className="font-medium">{totalMemory}GB</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Total Layers</span>
-                  <div className="font-medium">{totalLayers}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Architecture</span>
-                  <div className="font-medium">Waterfall</div>
-                </div>
-              </div>
+            <div className="pt-3 border-t">
               <div className="text-xs text-muted-foreground">
                 Layer distribution: {workers.map(w => `${w.layers}`).join(' + ')} = {totalLayers}
               </div>
