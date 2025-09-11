@@ -221,6 +221,12 @@ function ChatPageContent() {
   const sendMessage = async (content: string = inputMessage) => {
     if (!content.trim() || !activeRoomId || !currentModel || isStreaming) return;
 
+    // Check if user has sufficient credits before sending
+    if (userCredits <= 0) {
+      alert('⚠️ You are out of credits - Buy more credits to continue chatting!');
+      return;
+    }
+
     const userMessage: Message = {
       id: `msg_${Date.now()}`,
       role: 'user',
