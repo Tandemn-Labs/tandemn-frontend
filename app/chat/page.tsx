@@ -549,7 +549,7 @@ function ChatPageContent() {
             {/* Input Area */}
             <div className="border-t p-4">
               {roomMessages.length === 0 && (
-                <div className="mb-4">
+                <div className="mb-4 opacity-80">
                   <p className="text-sm text-muted-foreground mb-2">Try these prompts:</p>
                   <div className="flex flex-wrap gap-2">
                     {samplePrompts.map((prompt) => (
@@ -558,7 +558,7 @@ function ChatPageContent() {
                         variant="outline"
                         size="sm"
                         onClick={() => setInputMessage(prompt)}
-                        className="text-xs"
+                        className="text-xs opacity-80 hover:opacity-100"
                       >
                         {prompt}
                       </Button>
@@ -567,17 +567,8 @@ function ChatPageContent() {
                 </div>
               )}
               
-              {/* Credit Balance Display */}
-              <div className="flex items-center justify-between mb-2 px-1">
-                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                  <Zap className="h-4 w-4" />
-                  <span>Credits: ${userCredits.toFixed(4)}</span>
-                  {userCredits < 0.01 && (
-                    <Badge variant="destructive" className="text-xs">
-                      Low Balance
-                    </Badge>
-                  )}
-                </div>
+              {/* Model Display - Credits removed */}
+              <div className="flex items-center justify-end mb-2 px-1">
                 <div className="text-xs text-muted-foreground">
                   {currentModel && `Using ${currentModel.name}`}
                 </div>

@@ -227,7 +227,7 @@ export default function MetricsPage() {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
@@ -255,16 +255,6 @@ export default function MetricsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${metrics.summary.totalCost.toFixed(4)}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{Math.round(metrics.summary.averageProcessingTime)}ms</div>
           </CardContent>
         </Card>
       </div>
@@ -298,7 +288,13 @@ export default function MetricsPage() {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={metrics.summary.requestsByModel}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="modelId" />
+                <XAxis 
+                  dataKey="modelId" 
+                  angle={-45} 
+                  textAnchor="end" 
+                  height={80}
+                  interval={0}
+                />
                 <YAxis />
                 <Tooltip />
                 <Bar dataKey="count" fill="#8884d8" />
