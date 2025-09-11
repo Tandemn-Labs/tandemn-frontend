@@ -62,7 +62,6 @@ function ChatPageContent() {
   const [currentModel, setCurrentModel] = useState<Model | null>(null);
   const [inputMessage, setInputMessage] = useState(initialQuery || '');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [showGPUUtilization, setShowGPUUtilization] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userCredits, setUserCredits] = useState<number>(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -214,7 +213,7 @@ function ChatPageContent() {
       } finally {
         abortControllerRef.current = null;
         setIsStreaming(false);
-        setShowGPUUtilization(false);
+        // GPU panel stays visible
       }
     }
   };
@@ -233,7 +232,7 @@ function ChatPageContent() {
     addMessage(activeRoomId, userMessage);
     setInputMessage('');
     setIsStreaming(true);
-    setShowGPUUtilization(true);
+    // GPU panel is always visible now
 
     // Create new AbortController for this request
     const controller = new AbortController();
@@ -394,7 +393,7 @@ function ChatPageContent() {
                 });
                 
                 setIsStreaming(false);
-                setTimeout(() => setShowGPUUtilization(false), 3000); // Hide after 3 seconds
+                // GPU panel stays visible - no auto-hide
                 // Refresh user credits after successful API call
                 fetchUserCredits();
                 // Clean up abort controller
@@ -417,7 +416,7 @@ function ChatPageContent() {
       }
       
       setIsStreaming(false);
-      setShowGPUUtilization(false);
+      // GPU panel stays visible
       abortControllerRef.current = null;
     }
   };
@@ -837,12 +836,12 @@ function ChatPageContent() {
         )}
         </div>
 
-        {/* GPU Utilization Panel - Hidden on mobile */}
-        {showGPUUtilization && activeRoom && (
+        {/* GPU Utilization Panel - Always visible when chat is active */}
+        {activeRoom && (
           <div className="w-96 border-l bg-muted/5 p-4 hidden lg:block">
             <GPUUtilization 
               modelName={currentModel?.name}
-              isVisible={showGPUUtilization}
+              isVisible={true}
               isStreaming={isStreaming}
             />
           </div>

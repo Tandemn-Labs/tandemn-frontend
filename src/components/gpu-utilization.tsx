@@ -257,16 +257,10 @@ export function GPUUtilization({ modelName = "Llama 3.3 70B", isVisible = true, 
       );
     });
 
-    // Calculate blocks served based on actual layers
-    const totalBlocksServed = adjustedEndBlock * 13; // Scale for display
-
     return (
       <div className="py-2">
         <div className="flex items-center">
           {blocks}
-        </div>
-        <div className="text-xs text-muted-foreground mt-1">
-          served {totalBlocksServed} blocks
         </div>
       </div>
     );
