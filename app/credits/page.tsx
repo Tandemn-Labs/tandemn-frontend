@@ -22,7 +22,7 @@ import { type Transaction } from '@/lib/credits-client';
 
 export default function CreditsPage() {
   const { isSignedIn, isLoaded } = useUser();
-  const [credits, setCredits] = useState<number>(0);
+  const [credits, setCredits] = useState<number>(20.00); // $20 default
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionsLoading, setTransactionsLoading] = useState(true);

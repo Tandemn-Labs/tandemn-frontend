@@ -22,10 +22,10 @@ export async function getUserCredits(userId?: string): Promise<number> {
     }
 
     const user = await clerkClient.users.getUser(userIdToUse);
-    return (user.privateMetadata?.credits as number) || 0;
+    return (user.privateMetadata?.credits as number) || 20.00; // $20 default balance for everyone
   } catch (error) {
     console.error('Error getting user credits:', error);
-    return 0;
+    return 20.00; // $20 default balance even on error
   }
 }
 
@@ -118,7 +118,7 @@ export async function addTransaction(userId: string, transaction: Omit<Transacti
     
     // Prepare clean metadata - prioritize essential data
     const cleanMetadata = {
-      credits: user.privateMetadata?.credits || 0,
+      credits: user.privateMetadata?.credits || 20.00, // $20 default balance
       lastCreditUpdate: user.privateMetadata?.lastCreditUpdate,
       apiKeys: preserveApiKeys, // Always preserve API keys
       transactions: currentMetadataSize > 6000 ? updatedTransactions.slice(0, 10) : updatedTransactions, // Reduce further if metadata is large
@@ -340,7 +340,7 @@ export async function generateAPIKey(name: string, userId?: string): Promise<{ s
     
     // Clean up metadata to avoid size limits (Clerk has ~8KB limit)
     const cleanMetadata = {
-      credits: user.privateMetadata?.credits || 0,
+      credits: user.privateMetadata?.credits || 20.00, // $20 default balance
       lastCreditUpdate: user.privateMetadata?.lastCreditUpdate,
       apiKeys: updatedKeys,
       // Remove large transaction history to make room for API keys
