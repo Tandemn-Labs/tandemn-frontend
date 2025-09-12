@@ -16,6 +16,13 @@ export function ThinkingMode({ content, isStreaming, isFinished = false, classNa
   // Auto-collapse when thinking is finished
   const [isExpanded, setIsExpanded] = useState(isStreaming);
   
+  // Debug logging to track content updates
+  React.useEffect(() => {
+    if (isStreaming && content) {
+      console.log('🧠 THINKING COMPONENT UPDATE:', content.length, 'chars');
+    }
+  }, [content, isStreaming]);
+  
   // Collapse automatically when thinking finishes (but keep component visible)
   React.useEffect(() => {
     if (isFinished) {
@@ -25,6 +32,7 @@ export function ThinkingMode({ content, isStreaming, isFinished = false, classNa
   }, [isFinished]);
 
   // Show the component if we have content OR if we're actively streaming OR if thinking finished
+  // Also show if we're in streaming mode (even with empty content initially)
   if (!content && !isStreaming && !isFinished) {
     return null;
   }
@@ -63,7 +71,7 @@ export function ThinkingMode({ content, isStreaming, isFinished = false, classNa
                 <span className="animate-pulse text-white/80">▊</span>
               )}
             </div>
-            {!content && isStreaming && (
+            {(!content || content.trim() === '') && isStreaming && (
               <div className="flex items-center gap-2 text-white/90 text-sm">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 <span className="italic">Thinking...</span>

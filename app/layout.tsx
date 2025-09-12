@@ -8,8 +8,8 @@ import '@/globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Tandemn - The unified interface for LLMs',
-  description: 'Access the world\'s best AI models through a single API with Tandemn',
+  title: 'Tandemn - Combining Heterogenous GPUs to run AI models',
+  description: 'vRAM goes BRRRR',
   icons: {
     icon: '/favicon.png',
   },

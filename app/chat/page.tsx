@@ -299,6 +299,7 @@ function ChatPageContent() {
     let currentThinking = '';
     let currentRegular = '';
     let wasInThinking = false;
+    let thinkingModeActivated = false;
 
       // Create a streaming TextDecoder to handle UTF-8 properly
       const decoder = new TextDecoder('utf-8');
@@ -353,15 +354,6 @@ function ChatPageContent() {
                   const isInThinking = lastOpenThink > lastCloseThink;
                   const hasCompletedThinking = tempContent.includes('</think>');
                   
-                  // Check if thinking just finished (transition from thinking to regular)
-                  if (!isInThinking && hasCompletedThinking && wasInThinking) {
-                    console.log('🧠 THINKING JUST FINISHED! Transitioning to regular content...');
-                    setThinkingFinished(prev => ({ ...prev, [assistantMessageId]: true }));
-                  }
-                  
-                  // Track if we were in thinking for next iteration
-                  wasInThinking = isInThinking || hasCompletedThinking;
-                  
                   if (isInThinking) {
                     // Split at the last <think> tag
                     const beforeThink = tempContent.substring(0, lastOpenThink);
@@ -381,6 +373,11 @@ function ChatPageContent() {
                     // Add current streaming thinking content
                     tempThinking += afterThink;
                     tempRegular = processedBefore.replace(/<think>/g, '').trim();
+                    
+                    // Debug logging for thinking content
+                    if (afterThink && afterThink.trim()) {
+                      console.log('🧠 STREAMING THINKING:', afterThink.slice(0, 30) + '...');
+                    }
                   } else {
                     // No active thinking - process all completed blocks
                     const thinkingMatches = tempContent.match(/<think>([\s\S]*?)<\/think>/g);
@@ -394,13 +391,32 @@ function ChatPageContent() {
                     tempRegular = tempContent.replace(/<think>/g, '').trim();
                   }
                   
+                  // Check if thinking just finished (transition from thinking to regular)
+                  if (!isInThinking && hasCompletedThinking && wasInThinking) {
+                    console.log('🧠 THINKING JUST FINISHED! Transitioning to regular content...');
+                    setThinkingFinished(prev => ({ ...prev, [assistantMessageId]: true }));
+                  }
+                  
+                  // Track if we were in thinking for next iteration
+                  wasInThinking = isInThinking || hasCompletedThinking;
+                  
                   return { thinking: tempThinking, regular: tempRegular, isInThinking, hasCompletedThinking };
                 };
                 
                 const parsed = parseStreamingContent(fullContent);
                 
-                // Force thinking mode to show if we detect <think> tag, but ignore Qwen's empty thinking blocks
-                if (fullContent.includes('<think>') && streamingThinking[assistantMessageId] === undefined) {
+                // Debug after parsing
+                console.log('🔍 PARSING DEBUG:', {
+                  isInThinking: parsed.isInThinking,
+                  hasCompletedThinking: parsed.hasCompletedThinking,
+                  thinkingLength: parsed.thinking.length,
+                  regularLength: parsed.regular.length,
+                  fullContentLength: fullContent.length,
+                  thinkingContent: parsed.thinking.slice(0, 100) + '...'
+                });
+                
+                // Force thinking mode to show if we detect <think> tag (only once per message)
+                if (fullContent.includes('<think>') && !thinkingModeActivated) {
                   // Special case for Qwen - ignore empty thinking blocks
                   const isQwen = currentModel?.name.toLowerCase().includes('qwen');
                   
@@ -414,21 +430,31 @@ function ChatPageContent() {
                       // Don't activate thinking mode for Qwen empty blocks
                     } else {
                       console.log('🧠 QWEN THINKING MODE ACTIVATED! (has real content)');
-                      setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: '' }));
+                      thinkingModeActivated = true;
+                      setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: parsed.thinking }));
                       setThinkingFinished(prev => ({ ...prev, [assistantMessageId]: false }));
                     }
                   } else {
                     console.log('🧠 THINKING MODE ACTIVATED!');
-                    setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: '' }));
+                    thinkingModeActivated = true;
+                    setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: parsed.thinking }));
                     setThinkingFinished(prev => ({ ...prev, [assistantMessageId]: false }));
                   }
                 }
                 
                 // Update streaming states with debug logging (only if thinking mode is active)
-                if (parsed.thinking !== currentThinking && streamingThinking[assistantMessageId] !== undefined) {
-                  currentThinking = restoreEmojis(parsed.thinking);
-                  console.log('🧠 THINKING UPDATE:', currentThinking.slice(0, 50) + '...');
-                  setStreamingThinking(prev => ({ ...prev, [assistantMessageId]: currentThinking }));
+                if (thinkingModeActivated) {
+                  const restoredThinking = restoreEmojis(parsed.thinking);
+                  // Always update thinking content for real-time streaming
+                  if (restoredThinking !== currentThinking) {
+                    currentThinking = restoredThinking;
+                    console.log('🧠 THINKING UPDATE:', currentThinking.length, 'chars:', currentThinking.slice(0, 50) + '...');
+                    // Update thinking content
+                    setStreamingThinking(prev => ({ 
+                      ...prev, 
+                      [assistantMessageId]: currentThinking
+                    }));
+                  }
                 }
                 
                 if (parsed.regular !== currentRegular) {
@@ -698,8 +724,8 @@ function ChatPageContent() {
                             <div className="max-w-[85%] md:max-w-[80%]">
                               <ThinkingMode
                                 content={hasStreamingThinking || ''}
-                                isStreaming={!isThinkingFinished}
-                                isFinished={isThinkingFinished}
+                                isStreaming={!isThinkingFinished && isStreaming}
+                                isFinished={isThinkingFinished || false}
                                 className="mb-2"
                               />
                             </div>
