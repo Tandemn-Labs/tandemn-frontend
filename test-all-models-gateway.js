@@ -9,7 +9,7 @@ const fs = require('fs');
 
 // Configuration
 const BASE_URL = 'http://localhost:3000';
-const API_ENDPOINT = `${BASE_URL}/api/v1/chat/complete`;
+const API_ENDPOINT = `${BASE_URL}/api/v1/chat/completions`;
 
 // Test scenarios for different model capabilities
 const TEST_SCENARIOS = {

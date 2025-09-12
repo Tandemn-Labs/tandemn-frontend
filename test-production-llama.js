@@ -9,7 +9,7 @@ async function testProductionLlama() {
   console.log('🔗 Using your working curl command format');
   
   try {
-    const response = await fetch(`${API_BASE}/api/v1/chat/complete`, {
+    const response = await fetch(`${API_BASE}/api/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${API_KEY}`,
@@ -47,7 +47,7 @@ async function testStreamingLlama() {
   console.log('\n🧪 Testing Llama streaming via production API...');
   
   try {
-    const response = await fetch(`${API_BASE}/api/v1/chat/complete`, {
+    const response = await fetch(`${API_BASE}/api/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${API_KEY}`,

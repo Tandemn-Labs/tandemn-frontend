@@ -15,7 +15,7 @@ const generateCurlExample = (model: TandemnModel) => {
   
   const modelEndpoints = {
     'casperhansen/llama-3.3-70b-instruct-awq': {
-      url: `${domain}/api/v1/chat/complete`, // ❌ domain not declared yet
+      url: `${domain}/api/v1/chat/completions`, // ❌ domain not declared yet
       // ...
     }
   };
@@ -34,13 +34,13 @@ const generateCurlExample = (model: TandemnModel) => {
   
   const modelEndpoints = {
     'casperhansen/llama-3.3-70b-instruct-awq': {
-      url: `${domain}/api/v1/chat/complete`, // ✅ Now accessible
+      url: `${domain}/api/v1/chat/completions`, // ✅ Now accessible
       // ...
     }
   };
   
   // Fallback section - removed duplicate declaration
-  return `curl -X POST ${domain}/api/v1/chat/complete`; // ✅ Uses existing domain
+  return `curl -X POST ${domain}/api/v1/chat/completions`; // ✅ Uses existing domain
 ```
 
 ## 📝 Changes Made
