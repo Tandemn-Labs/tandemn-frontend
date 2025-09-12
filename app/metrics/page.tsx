@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -55,26 +55,33 @@ export default function MetricsPage() {
   const { user, isSignedIn } = useUser();
   const [metrics, setMetrics] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isFiltering, setIsFiltering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionsLoading, setTransactionsLoading] = useState(true);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [filters, setFilters] = useState({
     modelId: '',
     // backendUsed: '', // Hidden from user
     startDate: '',
     endDate: '',
   });
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
 
-  const fetchMetrics = async () => {
+  const fetchMetrics = async (isInitialLoad = false) => {
     try {
-      setLoading(true);
+      if (isInitialLoad) {
+        setLoading(true);
+      } else {
+        setIsFiltering(true);
+      }
       setError(null);
       
       const params = new URLSearchParams();
-      if (filters.modelId) params.append('modelId', filters.modelId);
+      if (debouncedFilters.modelId) params.append('modelId', debouncedFilters.modelId);
       // Backend filter removed from user interface
-      if (filters.startDate) params.append('startDate', filters.startDate);
-      if (filters.endDate) params.append('endDate', filters.endDate);
+      if (debouncedFilters.startDate) params.append('startDate', debouncedFilters.startDate);
+      if (debouncedFilters.endDate) params.append('endDate', debouncedFilters.endDate);
 
       const response = await fetch(`/api/metrics?${params.toString()}`);
       if (!response.ok) {
@@ -86,7 +93,11 @@ export default function MetricsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch metrics');
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      } else {
+        setIsFiltering(false);
+      }
     }
   };
 
@@ -105,12 +116,42 @@ export default function MetricsPage() {
     }
   };
 
+  const fetchAvailableModels = async () => {
+    try {
+      const response = await fetch('/api/metrics/models');
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableModels(data.models || []);
+      }
+    } catch (error) {
+      console.error('Error fetching available models:', error);
+    }
+  };
+
+  // Debounce filters to prevent excessive API calls
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [filters]);
+
+  // Initial fetch when signed in
   useEffect(() => {
     if (isSignedIn) {
-      fetchMetrics();
+      fetchMetrics(true); // Initial load
       fetchTransactions();
+      fetchAvailableModels();
     }
-  }, [isSignedIn, filters]); // Backend filters removed from user interface
+  }, [isSignedIn]);
+
+  // Fetch metrics when debounced filters change (but not on initial load)
+  useEffect(() => {
+    if (isSignedIn && metrics !== null) {
+      fetchMetrics(false); // Filter update, not initial load
+    }
+  }, [debouncedFilters]);
 
   if (!isSignedIn) {
     return (
@@ -140,7 +181,7 @@ export default function MetricsPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Metrics Dashboard</h1>
           <p className="text-red-600 mb-4">{error}</p>
-          <Button onClick={fetchMetrics}>Retry</Button>
+          <Button onClick={() => fetchMetrics(true)}>Retry</Button>
         </div>
       </div>
     );
@@ -184,8 +225,16 @@ export default function MetricsPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">Metrics Dashboard</h1>
-        <Button onClick={fetchMetrics} variant="outline">
+        <div className="flex items-center gap-2">
+          <h1 className="text-3xl font-bold">Metrics Dashboard</h1>
+          {isFiltering && (
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <div className="animate-spin h-3 w-3 border border-gray-300 border-t-gray-600 rounded-full"></div>
+              Updating...
+            </div>
+          )}
+        </div>
+        <Button onClick={() => fetchMetrics(true)} variant="outline">
           Refresh
         </Button>
       </div>
@@ -199,11 +248,22 @@ export default function MetricsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium">Model</label>
-              <Input
-                placeholder="Filter by model"
+              <Select
                 value={filters.modelId}
-                onChange={(e) => setFilters({ ...filters, modelId: e.target.value })}
-              />
+                onValueChange={(value) => setFilters({ ...filters, modelId: value === 'all' ? '' : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All models" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All models</SelectItem>
+                  {availableModels.map((modelId) => (
+                    <SelectItem key={modelId} value={modelId}>
+                      {modelId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {/* Backend filter removed from user interface */}
             <div>
