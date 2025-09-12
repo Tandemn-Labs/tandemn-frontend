@@ -196,7 +196,7 @@ export class TandemnClient {
             // Connection timeout - switching to alternative
             controller.abort();
           }
-        }, 12000); // 12 seconds after successful connection
+        }, 7000); // 6 seconds after successful connection
         
         while (true) {
           // Check if abort was signaled
@@ -272,7 +272,10 @@ export class TandemnClient {
                 emptyChunkCount++;
               }
             } catch (parseError) {
-              console.warn('Failed to parse SSE chunk:', trimmedLine);
+              // Only log if it's not just an empty chunk or [DONE] - reduce noise
+              if (trimmedLine !== 'data: [DONE]' && trimmedLine.trim() !== '') {
+                console.warn('Failed to parse SSE chunk:', trimmedLine, 'Error:', parseError);
+              }
             }
           }
           
@@ -403,7 +406,7 @@ export class TandemnClient {
             // Connection timeout - switching to alternative
             controller.abort();
           }
-        }, 10000); // 12 seconds after successful connection
+        }, 7000); // 7 seconds after successful connection
         
         while (true) {
           // Check if abort was signaled
@@ -475,7 +478,10 @@ export class TandemnClient {
                 emptyChunkCount++;
               }
             } catch (parseError) {
-              console.warn('Failed to parse SSE chunk:', trimmedLine);
+              // Only log if it's not just an empty chunk or [DONE] - reduce noise
+              if (trimmedLine !== 'data: [DONE]' && trimmedLine.trim() !== '') {
+                console.warn('Failed to parse SSE chunk:', trimmedLine, 'Error:', parseError);
+              }
             }
           }
         }

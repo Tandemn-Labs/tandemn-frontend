@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateAPIKey, getUserCredits, deductCredits, addTransaction } from '@/lib/credits';
 import { getModelById, calculateCost } from '@/config/models';
 import { getModelEndpoint } from '@/config/model-endpoints';
+import { tandemnClient, mapModelToOpenRouter } from '@/lib/tandemn-client';
+import { openRouterClient } from '@/lib/openrouter-client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,7 +31,23 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { model, messages, stream = false } = body;
+    const { 
+      model, 
+      messages, 
+      stream = false,
+      max_completion_tokens
+    } = body;
+    
+    // HARD CAP: Check user's request BEFORE capping it
+    if (max_completion_tokens && max_completion_tokens > 2000) {
+      return NextResponse.json(
+        { error: 'max_completion_tokens cannot exceed 2000 tokens' },
+        { status: 400 }
+      );
+    }
+    
+    // Cap at 2000 for actual usage
+    const maxTokens = Math.min(max_completion_tokens || 2000, 2000);
 
     if (!model || !messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -57,6 +75,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Use model-specific chat defaults, allow user to override
+    const modelDefaults = endpointConfig.requestParams;
+    const requestParams = {
+      temperature: body.temperature ?? modelDefaults.temperature,
+      top_p: body.top_p ?? modelDefaults.top_p,
+      top_k: body.top_k ?? modelDefaults.top_k,
+      min_p: body.min_p ?? modelDefaults.min_p,
+      max_completion_tokens: maxTokens, // Always use capped value
+      // Include any other model-specific params (like eos_token_id)
+      ...Object.fromEntries(
+        Object.entries(modelDefaults).filter(([key]) => 
+          !['temperature', 'top_p', 'top_k', 'min_p', 'max_completion_tokens'].includes(key)
+        )
+      )
+    };
+
     // Prepare messages for the backend request
     let backendMessages = [...messages];
     
@@ -73,7 +107,7 @@ export async function POST(request: NextRequest) {
       model: model,
       messages: backendMessages,
       stream: stream,
-      ...endpointConfig.requestParams
+      ...requestParams
     };
 
     // Calculate estimated input tokens for cost calculation (rough estimate: ~4 characters per token)
@@ -102,142 +136,161 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let actualInputTokens = estimatedInputTokens;
+    let actualOutputTokens = 0;
+    let backendUsed = 'tandemn';
+    let responseContent = '';
+    
     try {
-      // Make request to the model's specific endpoint
-      // Note: These vLLM backends always return streaming responses regardless of stream parameter
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-        'Cache-Control': 'no-cache',
+      // Try Tandemn backend first with model-specific defaults (capped at 2000)
+      const tandemnRequest = {
+        model_name: model,
+        input_text: JSON.stringify(backendMessages),
+        max_tokens: maxTokens,
+        messages: backendMessages,
       };
 
-      const response = await fetch(endpointConfig.endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(backendRequest),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Backend API error (${response.status}):`, errorText);
-        return NextResponse.json(
-          { error: `Backend API error: ${response.status} ${response.statusText}` },
-          { status: 502 }
-        );
-      }
 
       if (stream) {
-        // Handle streaming response
-        const reader = response.body?.getReader();
+        // Streaming response with fallback logic and proper abort handling
         const encoder = new TextEncoder();
-        const decoder = new TextDecoder('utf-8');
-
-        if (!reader) {
-          return NextResponse.json(
-            { error: 'Failed to get response stream' },
-            { status: 500 }
-          );
-        }
-
-        let totalInputTokens = 0;
-        let totalOutputTokens = 0;
-        let accumulatedContent = '';
-
+        
         const stream = new ReadableStream({
           async start(controller) {
+            // Create abort controller to handle client disconnection
+            const streamController = new AbortController();
+            let streamActive = true;
+            
+            // Helper function to safely enqueue data
+            const safeEnqueue = (data: Uint8Array) => {
+              if (!streamActive) return false;
+              try {
+                controller.enqueue(data);
+                return true;
+              } catch (error) {
+                streamActive = false;
+                streamController.abort();
+                return false;
+              }
+            };
+            
             try {
-              let buffer = '';
-              
-              while (true) {
-                const { done, value } = await reader.read();
-                
-                if (done) {
-                  // Calculate final cost and charge user
-                  const actualCost = calculateCost(model, totalInputTokens, totalOutputTokens);
+              // Try Tandemn first - 6 second bailout
+              const tandemnResponse = await tandemnClient.inferStreamingWithTimeout(
+                tandemnRequest, 
+                (content: string) => {
+                  if (!streamActive || streamController.signal.aborted) return;
                   
-                  // Charge user for actual usage
-                  await deductCredits(userId, actualCost);
+                  responseContent += content;
                   
-                  // Add transaction record
-                  await addTransaction(userId, {
-                    type: 'usage_charge',
-                    amount: -actualCost,
-                    description: `${modelInfo.name} - ${totalInputTokens + totalOutputTokens} tokens (streaming)`,
-                    status: 'completed',
-                    metadata: {
-                      model,
-                      input_tokens: totalInputTokens,
-                      output_tokens: totalOutputTokens,
-                      total_tokens: totalInputTokens + totalOutputTokens,
-                      streaming: true
-                    }
-                  });
-                  
-                  break;
-                }
-                
-                buffer += decoder.decode(value, { stream: true });
-                
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-                
-                for (const line of lines) {
-                  const trimmedLine = line.trim();
-                  
-                  if (trimmedLine === '') continue;
-                  if (trimmedLine === 'data: [DONE]') {
-                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                    continue;
-                  }
-                  if (!trimmedLine.startsWith('data: ')) continue;
-                  
-                  try {
-                    const jsonData = trimmedLine.slice(6);
-                    const chunk = JSON.parse(jsonData);
-                    
-                    // Extract token usage from chunk if available
-                    if (chunk.usage) {
-                      totalInputTokens = chunk.usage.prompt_tokens || totalInputTokens;
-                      totalOutputTokens = chunk.usage.completion_tokens || totalOutputTokens;
-                    }
-                    
-                    // Accumulate content for token estimation
-                    if (chunk.choices?.[0]?.delta?.content) {
-                      // Filter out end-of-text tokens before accumulating
-                      const filteredContent = chunk.choices[0].delta.content
-                        .replace(/<\|eot_id\|>/g, '')
-                        .replace(/<\|end\|>/g, '')
-                        .replace(/<\|endoftext\|>/g, '')
-                        .replace(/<\|im_end\|>/g, '')
-                        .replace(/<｜end▁of▁sentence｜>/g, '');
-                      
-                      accumulatedContent += filteredContent;
-                      
-                      // Also update the chunk content before sending to client
-                      if (filteredContent !== chunk.choices[0].delta.content) {
-                        chunk.choices[0].delta.content = filteredContent;
-                        // Send the modified chunk instead of original line
-                        const modifiedLine = `data: ${JSON.stringify(chunk)}`;
-                        controller.enqueue(encoder.encode(`${modifiedLine}\n\n`));
-                      } else {
-                        controller.enqueue(encoder.encode(`${trimmedLine}\n\n`));
+                  // Send OpenAI-compatible chunk
+                  const chunk = {
+                    id: `chatcmpl-${Date.now()}`,
+                    object: 'chat.completion.chunk',
+                    created: Math.floor(Date.now() / 1000),
+                    model: model,
+                    choices: [{
+                      index: 0,
+                      delta: {
+                        content: content
                       }
-                    } else {
-                      controller.enqueue(encoder.encode(`${trimmedLine}\n\n`));
-                    }
-                  } catch (parseError) {
-                    console.warn('Failed to parse streaming chunk:', trimmedLine);
-                    controller.enqueue(encoder.encode(`${trimmedLine}\n\n`));
+                    }]
+                  };
+                  const chunkLine = `data: ${JSON.stringify(chunk)}\n\n`;
+                  safeEnqueue(encoder.encode(chunkLine));
+                },
+                600000, // 10 minute max (no artificial timeout)
+                streamController.signal // Pass abort signal to tandem client
+              );
+              
+              if (tandemnResponse && tandemnResponse.result && streamActive) {
+                actualOutputTokens = Math.ceil(responseContent.length / 4);
+                backendUsed = 'tandemn';
+              }
+            } catch (tandemnError) {
+              if (streamController.signal.aborted) {
+                return; // Don't fallback if user cancelled
+              }
+              
+              // Fallback to OpenRouter only if stream is still active
+              if (streamActive) {
+                try {
+                  const openRouterModel = mapModelToOpenRouter(model);
+                  const openRouterRequest = {
+                    model: openRouterModel,
+                    messages: backendMessages,
+                    max_tokens: maxTokens, // Use user's capped value (max 2000)
+                    temperature: requestParams.temperature,
+                    top_p: requestParams.top_p,
+                    top_k: requestParams.top_k,
+                    min_p: requestParams.min_p
+                  };
+                  
+                  // Use REAL OpenRouter streaming (no more fake streaming!)
+                  await openRouterClient.chatStreamWithTimeout(
+                    openRouterRequest,
+                    (content: string) => {
+                      if (!streamActive || streamController.signal.aborted) return;
+                      
+                      responseContent += content;
+                      
+                      // Send real-time chunk
+                      const chunk = {
+                        id: `chatcmpl-${Date.now()}`,
+                        object: 'chat.completion.chunk', 
+                        created: Math.floor(Date.now() / 1000),
+                        model: model,
+                        choices: [{
+                          index: 0,
+                          delta: {
+                            content: content
+                          }
+                        }]
+                      };
+                      const chunkLine = `data: ${JSON.stringify(chunk)}\n\n`;
+                      safeEnqueue(encoder.encode(chunkLine));
+                    },
+                    60000
+                  );
+                  
+                  actualOutputTokens = Math.ceil(responseContent.length / 4);
+                  backendUsed = 'openrouter';
+                } catch (fallbackError) {
+                  if (!streamController.signal.aborted) {
+                    controller.error(fallbackError);
                   }
+                  return;
                 }
               }
-            } catch (error) {
-              console.error('Streaming error:', error);
-              controller.error(error);
-            } finally {
-              controller.close();
-              reader.releaseLock();
             }
+            
+            // Send final chunk only if stream is still active
+            if (streamActive && !streamController.signal.aborted) {
+              safeEnqueue(encoder.encode('data: [DONE]\n\n'));
+              controller.close();
+              
+              // Calculate and charge for usage
+              const actualCost = calculateCost(model, actualInputTokens, actualOutputTokens);
+              await deductCredits(userId, actualCost);
+              await addTransaction(userId, {
+                type: 'usage_charge',
+                amount: -actualCost,
+                description: `${modelInfo.name} - ${actualInputTokens + actualOutputTokens} tokens (streaming, ${backendUsed})`,
+                status: 'completed',
+                metadata: {
+                  model,
+                  input_tokens: actualInputTokens,
+                  output_tokens: actualOutputTokens,
+                  total_tokens: actualInputTokens + actualOutputTokens,
+                  streaming: true,
+                  backend: backendUsed
+                }
+              });
+            }
+          },
+          
+          cancel() {
+            // This is called when client disconnects/aborts
           }
         });
 
@@ -249,95 +302,50 @@ export async function POST(request: NextRequest) {
           },
         });
       } else {
-        // Handle non-streaming response by collecting all streaming chunks
-        // Since the backend always returns streaming, we need to convert it
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder('utf-8');
-
-        if (!reader) {
-          return NextResponse.json(
-            { error: 'Failed to get response stream' },
-            { status: 500 }
-          );
-        }
-
-        let totalInputTokens = 0;
-        let totalOutputTokens = 0;
-        let fullContent = '';
-        let responseId = '';
-        let responseCreated = 0;
-
+        // Non-streaming response with fallback logic - NO EXPLICIT TIMEOUTS
         try {
-          let buffer = '';
+          // Try Tandemn first - let bailout logic handle timeouts naturally  
+          const tandemnResponse = await tandemnClient.inferWithTimeout(tandemnRequest, 600000); // 10 minutes max
           
-          while (true) {
-            const { done, value } = await reader.read();
-            
-            if (done) break;
-            
-            buffer += decoder.decode(value, { stream: true });
-            
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-            
-            for (const line of lines) {
-              const trimmedLine = line.trim();
-              
-              if (trimmedLine === '' || trimmedLine === 'data: [DONE]') continue;
-              if (!trimmedLine.startsWith('data: ')) continue;
-              
-              try {
-                const jsonData = trimmedLine.slice(6);
-                const chunk = JSON.parse(jsonData);
-                
-                // Store response metadata
-                if (chunk.id) responseId = chunk.id;
-                if (chunk.created) responseCreated = chunk.created;
-                
-                // Extract token usage from chunk if available
-                if (chunk.usage) {
-                  totalInputTokens = chunk.usage.prompt_tokens || totalInputTokens;
-                  totalOutputTokens = chunk.usage.completion_tokens || totalOutputTokens;
-                }
-                
-                // Accumulate content
-                if (chunk.choices?.[0]?.delta?.content) {
-                  // Filter out end-of-text tokens before accumulating
-                  const filteredContent = chunk.choices[0].delta.content
-                    .replace(/<\|eot_id\|>/g, '')
-                    .replace(/<\|end\|>/g, '')
-                    .replace(/<\|endoftext\|>/g, '')
-                    .replace(/<\|im_end\|>/g, '')
-                    .replace(/<｜end▁of▁sentence｜>/g, '');
-                  
-                  fullContent += filteredContent;
-                }
-              } catch (parseError) {
-                // Ignore parse errors
-              }
-            }
+          if (tandemnResponse && tandemnResponse.result) {
+            responseContent = tandemnResponse.result;
+            actualOutputTokens = Math.ceil(responseContent.length / 4);
+            backendUsed = 'tandemn';
           }
-        } finally {
-          reader.releaseLock();
+        } catch (tandemnError) {
+          // Fallback to OpenRouter
+          try {
+            const openRouterModel = mapModelToOpenRouter(model);
+            const openRouterRequest = {
+              model: openRouterModel,
+              messages: backendMessages,
+              max_tokens: maxTokens, // Use user's capped value (max 2000)
+              temperature: requestParams.temperature,
+              top_p: requestParams.top_p,
+              top_k: requestParams.top_k,
+              min_p: requestParams.min_p
+            };
+            
+            const openRouterResponse = await openRouterClient.chatWithTimeout(openRouterRequest, 60000); // 1 minute for OpenRouter
+            
+            if (openRouterResponse && openRouterResponse.choices?.[0]) {
+              responseContent = openRouterResponse.choices[0].message.content || '';
+              actualOutputTokens = openRouterResponse.usage?.completion_tokens || Math.ceil(responseContent.length / 4);
+              actualInputTokens = openRouterResponse.usage?.prompt_tokens || actualInputTokens;
+              backendUsed = 'openrouter';
+            }
+          } catch (fallbackError) {
+            return NextResponse.json(
+              { error: 'Both primary and fallback services failed' },
+              { status: 502 }
+            );
+          }
         }
-
-        // Final cleanup of any remaining end-of-text tokens
-        fullContent = fullContent
-          .replace(/<\|eot_id\|>/g, '')
-          .replace(/<\|end\|>/g, '')
-          .replace(/<\|endoftext\|>/g, '')
-          .replace(/<\|im_end\|>/g, '')
-          .replace(/<｜end▁of▁sentence｜>/g, '')
-          .trim();
         
-        // Estimate tokens if not provided by backend
-        if (totalInputTokens === 0) totalInputTokens = estimatedInputTokens;
-        if (totalOutputTokens === 0) totalOutputTokens = Math.ceil(fullContent.length / 4);
-        
-        const totalTokens = totalInputTokens + totalOutputTokens;
+        const totalTokens = actualInputTokens + actualOutputTokens;
         
         // Calculate actual cost
-        const actualCost = calculateCost(model, totalInputTokens, totalOutputTokens);
+        const actualCost = calculateCost(model, actualInputTokens, actualOutputTokens);
         
         // Charge user for actual usage
         const chargeSuccess = await deductCredits(userId, actualCost);
@@ -352,43 +360,44 @@ export async function POST(request: NextRequest) {
         await addTransaction(userId, {
           type: 'usage_charge',
           amount: -actualCost,
-          description: `${modelInfo.name} - ${totalTokens} tokens`,
+          description: `${modelInfo.name} - ${totalTokens} tokens (${backendUsed})`,
           status: 'completed',
           metadata: {
             model,
-            input_tokens: totalInputTokens,
-            output_tokens: totalOutputTokens,
-            total_tokens: totalTokens
+            input_tokens: actualInputTokens,
+            output_tokens: actualOutputTokens,
+            total_tokens: totalTokens,
+            backend: backendUsed
           }
         });
         
         // Return OpenAI-compatible non-streaming response
         const result = {
-          id: responseId || `chatcmpl-${Date.now()}`,
+          id: `chatcmpl-${Date.now()}`,
           object: 'chat.completion',
-          created: responseCreated || Math.floor(Date.now() / 1000),
+          created: Math.floor(Date.now() / 1000),
           model: model,
           choices: [
             {
               index: 0,
               message: {
                 role: 'assistant',
-                content: fullContent,
+                content: responseContent,
               },
               finish_reason: 'stop',
             },
           ],
           usage: {
-            prompt_tokens: totalInputTokens,
-            completion_tokens: totalOutputTokens,
+            prompt_tokens: actualInputTokens,
+            completion_tokens: actualOutputTokens,
             total_tokens: totalTokens,
           },
           // Tandemn-specific billing info
           billing: {
             credits_charged: actualCost,
             credits_remaining: userBalance - actualCost,
-            input_cost: Math.round(((totalInputTokens / 1000000) * modelInfo.input_price_per_1m) * 10000) / 10000,
-            output_cost: Math.round(((totalOutputTokens / 1000000) * modelInfo.output_price_per_1m) * 10000) / 10000,
+            input_cost: Math.round(((actualInputTokens / 1000000) * modelInfo.input_price_per_1m) * 10000) / 10000,
+            output_cost: Math.round(((actualOutputTokens / 1000000) * modelInfo.output_price_per_1m) * 10000) / 10000,
             pricing: {
               input_price_per_1m_tokens: modelInfo.input_price_per_1m,
               output_price_per_1m_tokens: modelInfo.output_price_per_1m,
@@ -405,7 +414,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(result);
       }
     } catch (error) {
-      console.error('Error calling backend API:', error);
       return NextResponse.json(
         { error: 'Failed to communicate with backend API' },
         { status: 502 }
@@ -413,7 +421,6 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Error in /api/v1/chat/completions:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

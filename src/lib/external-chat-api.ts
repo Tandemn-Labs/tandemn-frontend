@@ -177,7 +177,10 @@ export class ExternalChatAPI {
             
             onChunk(chunk);
           } catch (parseError) {
-            console.warn('Failed to parse SSE chunk:', trimmedLine, parseError);
+            // Only log if it's not just an empty chunk - reduce noise
+            if (trimmedLine !== 'data: [DONE]' && trimmedLine.trim() !== '') {
+              console.warn('Failed to parse SSE chunk:', trimmedLine, 'Error:', parseError);
+            }
           }
         }
       }
