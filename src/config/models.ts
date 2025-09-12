@@ -79,8 +79,8 @@ export function calculateCost(modelId: string, inputTokens: number, outputTokens
   const outputCost = (outputTokens / 1000000) * model.output_price_per_1m;
   const totalCost = inputCost + outputCost;
   
-  // Round to 4 decimal places for precision, minimum $0.0001
-  return Math.max(Math.round(totalCost * 10000) / 10000, 0.0001);
+  // Return exact cost with full precision (no rounding)
+  return totalCost;
 }
 
 export function getAllModels(): TandemnModel[] {

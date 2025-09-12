@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
         input_tokens,
         output_tokens,
         total_tokens: input_tokens + output_tokens,
-        input_cost: Math.round(inputCost * 10000) / 10000,
-        output_cost: Math.round(outputCost * 10000) / 10000,
+        input_cost: inputCost, // Full precision, no rounding
+        output_cost: outputCost, // Full precision, no rounding
         total_cost: totalCost,
         pricing: {
           input_price_per_1m: model.input_price_per_1m,

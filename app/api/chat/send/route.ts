@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { db } from '@/mock/db';
 import { chatSendSchema } from '@/lib/zod-schemas';
-import { chargeCredits, getUserCredits, calculateTokenCost } from '@/lib/credits';
+import { chargeCredits, getUserCredits } from '@/lib/credits';
+import { calculateCost } from '@/config/models';
 import { sleep } from '@/lib/utils';
 import { tandemnClient, mapModelToOpenRouter } from '@/lib/tandemn-client';
 import { openRouterClient } from '@/lib/openrouter-client';
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     // Check user credits for authenticated users (based on model pricing)
     const estimatedInputTokens = Math.ceil(conversationText.length / 4);
     const estimatedOutputTokens = Math.ceil(1024 / 4); // Assume max tokens for estimation (playground limit)
-    const estimatedCost = calculateTokenCost(model.id, estimatedInputTokens, estimatedOutputTokens);
+    const estimatedCost = calculateCost(model.id, estimatedInputTokens, estimatedOutputTokens);
     
     if (userId) {
       const userCredits = await getUserCredits(userId);
@@ -223,7 +224,7 @@ export async function POST(request: NextRequest) {
               });
               
               // Charge credits based on actual token usage and model pricing
-              const actualCost = calculateTokenCost(model.id, inputTokens, outputTokens);
+              const actualCost = calculateCost(model.id, inputTokens, outputTokens);
               await chargeCredits(actualCost, `${model.name}: ${inputTokens} input + ${outputTokens} output tokens`, userId, { 
                 modelId: model.id, 
                 roomId, 

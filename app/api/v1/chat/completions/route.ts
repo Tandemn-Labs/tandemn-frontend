@@ -410,8 +410,8 @@ export async function POST(request: NextRequest) {
           billing: {
             credits_charged: actualCost,
             credits_remaining: userBalance - actualCost,
-            input_cost: Math.round(((actualInputTokens / 1000000) * modelInfo.input_price_per_1m) * 10000) / 10000,
-            output_cost: Math.round(((actualOutputTokens / 1000000) * modelInfo.output_price_per_1m) * 10000) / 10000,
+            input_cost: (actualInputTokens / 1000000) * modelInfo.input_price_per_1m, // Full precision, no rounding
+            output_cost: (actualOutputTokens / 1000000) * modelInfo.output_price_per_1m, // Full precision, no rounding
             pricing: {
               input_price_per_1m_tokens: modelInfo.input_price_per_1m,
               output_price_per_1m_tokens: modelInfo.output_price_per_1m,

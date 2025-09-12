@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateAPIKey, chargeForUsage, getUserCredits, calculateTokenCost } from '@/lib/credits';
+import { validateAPIKey, chargeForUsage, getUserCredits } from '@/lib/credits';
+import { calculateCost } from '@/config/models';
 import { getSimpleGateway } from '@/lib/simple-gateway';
 import { getAPIGateway } from '@/lib/gateway';
 import { db } from '@/mock/db';
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
     const totalTokens = inputTokens + outputTokens;
 
     // Calculate cost based on tokens
-    const creditCost = calculateTokenCost(model, inputTokens, outputTokens);
+    const creditCost = calculateCost(model, inputTokens, outputTokens);
 
     // Check user credits
     const userCredits = await getUserCredits(userId);
@@ -152,9 +153,9 @@ export async function POST(request: NextRequest) {
       // Enhanced pricing information
       pricing: {
         credits_charged: creditCost,
-        credits_remaining: Math.round((userCredits - creditCost) * 100) / 100,
-        input_cost: Math.round(((inputTokens / 1000000) * modelInfo.promptPrice) * 100) / 100,
-        output_cost: Math.round(((outputTokens / 1000000) * modelInfo.completionPrice) * 100) / 100,
+        credits_remaining: userCredits - creditCost, // Full precision, no rounding
+        input_cost: (inputTokens / 1000000) * modelInfo.promptPrice, // Full precision, no rounding
+        output_cost: (outputTokens / 1000000) * modelInfo.completionPrice, // Full precision, no rounding
         input_price_per_1m_tokens: modelInfo.promptPrice,
         output_price_per_1m_tokens: modelInfo.completionPrice,
       },
@@ -221,7 +222,7 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
   // Calculate costs
   const inputTokens = Math.ceil(JSON.stringify(messages).length / 4);
   const outputTokens = Math.ceil(15); // Estimated response length
-  const creditCost = calculateTokenCost(model, inputTokens, outputTokens);
+  const creditCost = calculateCost(model, inputTokens, outputTokens);
   const userCredits = await getUserCredits(validation.userId);
   
   if (userCredits < creditCost) {
@@ -268,7 +269,7 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
     },
     pricing: {
       credits_charged: creditCost,
-      credits_remaining: Math.round((userCredits - creditCost) * 100) / 100,
+      credits_remaining: userCredits - creditCost, // Full precision, no rounding
     },
     gateway: {
       machine_number: result.machine!.machineNumber,
@@ -337,7 +338,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     }
 
     console.log('Calculating costs...');
-    const creditCost = calculateTokenCost(model, inputTokens, outputTokens);
+    const creditCost = calculateCost(model, inputTokens, outputTokens);
     const userCredits = await getUserCredits(userId);
     
     if (userCredits < creditCost) {
@@ -401,7 +402,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     const responseData = result.data;
     const actualInputTokens = responseData.usage?.prompt_tokens || inputTokens;
     const actualOutputTokens = responseData.usage?.completion_tokens || outputTokens;
-    const actualCreditCost = calculateTokenCost(model, actualInputTokens, actualOutputTokens);
+    const actualCreditCost = calculateCost(model, actualInputTokens, actualOutputTokens);
 
     const chargeSuccess = await chargeForUsage(model, actualInputTokens, actualOutputTokens, userId);
     if (!chargeSuccess) {
@@ -417,9 +418,9 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
       ...responseData,
       pricing: {
         credits_charged: actualCreditCost,
-        credits_remaining: Math.round((userCredits - actualCreditCost) * 100) / 100,
-        input_cost: Math.round(((actualInputTokens / 1000000) * modelInfo.promptPrice) * 100) / 100,
-        output_cost: Math.round(((actualOutputTokens / 1000000) * modelInfo.completionPrice) * 100) / 100,
+        credits_remaining: userCredits - actualCreditCost, // Full precision, no rounding
+        input_cost: (actualInputTokens / 1000000) * modelInfo.promptPrice, // Full precision, no rounding
+        output_cost: (actualOutputTokens / 1000000) * modelInfo.completionPrice, // Full precision, no rounding
         input_price_per_1m_tokens: modelInfo.promptPrice,
         output_price_per_1m_tokens: modelInfo.completionPrice,
       },
@@ -465,7 +466,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
   const conversationText = JSON.stringify(messages);
   const inputTokens = Math.ceil(conversationText.length / 4);
   const estimatedOutputTokens = Math.ceil(max_tokens / 4);
-  const estimatedCost = calculateTokenCost(model, inputTokens, estimatedOutputTokens);
+  const estimatedCost = calculateCost(model, inputTokens, estimatedOutputTokens);
 
   // Check user credits
   const userCredits = await getUserCredits(userId);
@@ -591,7 +592,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
           
           // Calculate actual costs and charge
           totalOutputTokens = Math.ceil(responseContent.length / 4);
-          const actualCost = calculateTokenCost(model, inputTokens, totalOutputTokens);
+          const actualCost = calculateCost(model, inputTokens, totalOutputTokens);
           
           // Charge credits based on actual usage
           await chargeForUsage(model, inputTokens, totalOutputTokens, userId);
