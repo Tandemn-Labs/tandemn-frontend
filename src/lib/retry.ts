@@ -8,6 +8,33 @@ export interface RetryOptions {
   retryCondition?: (error: any) => boolean;
 }
 
+// Define error interfaces for better type safety
+interface ErrorWithStatus {
+  status?: number;
+  message?: string;
+}
+
+interface ErrorWithRetryAfter extends ErrorWithStatus {
+  retryAfter?: number;
+}
+
+interface ClerkError extends ErrorWithStatus {
+  clerkError?: boolean;
+}
+
+// Type guard functions
+function hasStatus(error: any): error is Required<ErrorWithStatus> {
+  return error && typeof error === 'object' && typeof error.status === 'number';
+}
+
+function hasRetryAfter(error: any): error is Required<ErrorWithRetryAfter> {
+  return error && typeof error === 'object' && typeof error.status === 'number' && typeof error.retryAfter === 'number';
+}
+
+function isClerkError(error: any): error is ClerkError {
+  return error && typeof error === 'object' && error.clerkError === true;
+}
+
 export class RetryableError extends Error {
   constructor(message: string, public readonly originalError: any) {
     super(message);
@@ -26,9 +53,9 @@ export async function withRetry<T>(
     backoffFactor = 2,
     retryCondition = (error) => {
       // Retry on rate limits and temporary server errors
-      if (error?.status === 429) return true; // Too Many Requests
-      if (error?.status >= 500 && error?.status < 600) return true; // Server errors
-      if (error?.clerkError && error?.status === 429) return true; // Clerk rate limits
+      if (hasStatus(error) && error.status === 429) return true; // Too Many Requests
+      if (hasStatus(error) && error.status >= 500 && error.status < 600) return true; // Server errors
+      if (isClerkError(error) && hasStatus(error) && error.status === 429) return true; // Clerk rate limits
       return false;
     }
   } = options;
@@ -53,12 +80,13 @@ export async function withRetry<T>(
       }
 
       // Special handling for Clerk rate limits
-      if (error?.status === 429 && error?.retryAfter) {
+      if (hasStatus(error) && error.status === 429 && hasRetryAfter(error)) {
         // Use Clerk's suggested retry delay
         delay = (error.retryAfter * 1000) + Math.random() * 1000; // Add jitter
         console.log(`🕐 Rate limited by Clerk, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`);
       } else {
-        console.log(`🔄 Retrying operation in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1}):`, error.message);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.log(`🔄 Retrying operation in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1}):`, errorMessage);
       }
 
       // Wait before retrying
@@ -83,9 +111,9 @@ export async function withClerkRetry<T>(operation: () => Promise<T>): Promise<T>
     backoffFactor: 2,
     retryCondition: (error) => {
       // Specifically for Clerk errors
-      if (error?.clerkError && error?.status === 429) return true;
-      if (error?.status === 429) return true;
-      if (error?.status >= 500 && error?.status < 600) return true;
+      if (isClerkError(error) && hasStatus(error) && error.status === 429) return true;
+      if (hasStatus(error) && error.status === 429) return true;
+      if (hasStatus(error) && error.status >= 500 && error.status < 600) return true;
       return false;
     }
   });
