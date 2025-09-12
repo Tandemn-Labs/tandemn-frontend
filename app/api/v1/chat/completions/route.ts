@@ -150,6 +150,7 @@ export async function POST(request: NextRequest) {
         messages: backendMessages,
       };
 
+      console.log('🔧 Trying Tandemn backend for model:', model);
 
       if (stream) {
         // Streaming response with fallback logic and proper abort handling
@@ -168,6 +169,7 @@ export async function POST(request: NextRequest) {
                 controller.enqueue(data);
                 return true;
               } catch (error) {
+                console.log('🛑 Client disconnected, stopping stream');
                 streamActive = false;
                 streamController.abort();
                 return false;
@@ -206,11 +208,15 @@ export async function POST(request: NextRequest) {
               if (tandemnResponse && tandemnResponse.result && streamActive) {
                 actualOutputTokens = Math.ceil(responseContent.length / 4);
                 backendUsed = 'tandemn';
+                console.log('✅ Tandemn streaming successful');
               }
             } catch (tandemnError) {
               if (streamController.signal.aborted) {
+                console.log('🛑 Stream was cancelled by client');
                 return; // Don't fallback if user cancelled
               }
+              
+              console.error('❌ Tandemn failed, falling back to OpenRouter:', tandemnError);
               
               // Fallback to OpenRouter only if stream is still active
               if (streamActive) {
@@ -255,8 +261,10 @@ export async function POST(request: NextRequest) {
                   
                   actualOutputTokens = Math.ceil(responseContent.length / 4);
                   backendUsed = 'openrouter';
+                  console.log('✅ OpenRouter streaming fallback successful (REAL streaming)');
                 } catch (fallbackError) {
                   if (!streamController.signal.aborted) {
+                    console.error('❌ Both Tandemn and OpenRouter failed:', fallbackError);
                     controller.error(fallbackError);
                   }
                   return;
@@ -290,6 +298,7 @@ export async function POST(request: NextRequest) {
           },
           
           cancel() {
+            console.log('🛑 Stream cancelled by client');
             // This is called when client disconnects/aborts
           }
         });
@@ -311,8 +320,11 @@ export async function POST(request: NextRequest) {
             responseContent = tandemnResponse.result;
             actualOutputTokens = Math.ceil(responseContent.length / 4);
             backendUsed = 'tandemn';
+            console.log('✅ Tandemn non-streaming successful');
           }
         } catch (tandemnError) {
+          console.error('❌ Tandemn failed, falling back to OpenRouter:', tandemnError);
+          
           // Fallback to OpenRouter
           try {
             const openRouterModel = mapModelToOpenRouter(model);
@@ -333,8 +345,10 @@ export async function POST(request: NextRequest) {
               actualOutputTokens = openRouterResponse.usage?.completion_tokens || Math.ceil(responseContent.length / 4);
               actualInputTokens = openRouterResponse.usage?.prompt_tokens || actualInputTokens;
               backendUsed = 'openrouter';
+              console.log('✅ OpenRouter non-streaming fallback successful');
             }
           } catch (fallbackError) {
+            console.error('❌ Both Tandemn and OpenRouter failed:', fallbackError);
             return NextResponse.json(
               { error: 'Both primary and fallback services failed' },
               { status: 502 }
@@ -414,6 +428,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(result);
       }
     } catch (error) {
+      console.error('Error calling backend API:', error);
       return NextResponse.json(
         { error: 'Failed to communicate with backend API' },
         { status: 502 }
@@ -421,6 +436,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
+    console.error('Error in /api/v1/chat/completions:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
