@@ -119,14 +119,36 @@ export async function deductCredits(userId: string, amount: number): Promise<boo
   }
 }
 
-// Get user's transaction history from metadata
+// Get user's transaction history from metadata (with caching and rate limiting)
 export async function getTransactionHistory(userId?: string): Promise<Transaction[]> {
   try {
     const userIdToUse = userId || (await auth()).userId;
     if (!userIdToUse) return [];
 
-    const user = await clerkClient.users.getUser(userIdToUse);
-    return (user.privateMetadata?.transactions as Transaction[]) || [];
+    // Check cache first
+    const cacheKey = CacheKeys.userTransactions(userIdToUse);
+    const cachedTransactions = cache.get<Transaction[]>(cacheKey);
+    if (cachedTransactions !== null) {
+      console.log('✅ Retrieved transaction history from cache');
+      return cachedTransactions;
+    }
+
+    // Cache miss - fetch from Clerk with retry and rate limiting
+    console.log('🔄 Cache miss - fetching transaction history from Clerk');
+    const user = await withRateLimit(
+      () => withClerkRetry(async () => {
+        return await clerkClient.users.getUser(userIdToUse);
+      }),
+      Priority.NORMAL
+    );
+    
+    const transactions = (user.privateMetadata?.transactions as Transaction[]) || [];
+    
+    // Cache the result
+    cache.set(cacheKey, transactions, CacheTTL.USER_TRANSACTIONS);
+    console.log(`✅ Cached transaction history: ${transactions.length} transactions`);
+    
+    return transactions;
   } catch (error) {
     console.error('Error getting transaction history:', error);
     return [];
@@ -175,8 +197,11 @@ export async function addTransaction(userId: string, transaction: Omit<Transacti
     await clerkClient.users.updateUser(userId, {
       privateMetadata: cleanMetadata,
     });
-    
-    console.log('✅ Transaction added successfully for user:', userId);
+
+    // Invalidate transaction cache after successful update
+    const transactionCacheKey = CacheKeys.userTransactions(userId);
+    cache.delete(transactionCacheKey);
+    console.log('✅ Transaction added and cache invalidated for user:', userId);
   } catch (error) {
     console.error('Error adding transaction:', error);
     

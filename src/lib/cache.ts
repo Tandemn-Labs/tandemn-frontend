@@ -87,6 +87,7 @@ export const CacheKeys = {
   apiKeyValidation: (apiKey: string) => `apikey:${apiKey}:validation`,
   userApiKeys: (userId: string) => `user:${userId}:apikeys`,
   userMetadata: (userId: string) => `user:${userId}:metadata`,
+  userTransactions: (userId: string) => `user:${userId}:transactions`,
 };
 
 // Cache TTLs (Time To Live) in milliseconds
@@ -95,4 +96,5 @@ export const CacheTTL = {
   API_KEY_VALIDATION: 10 * 60 * 1000, // 10 minutes - API keys don't change often
   USER_API_KEYS: 5 * 60 * 1000,   // 5 minutes - API keys don't change often
   USER_METADATA: 3 * 60 * 1000,   // 3 minutes - metadata can change
+  USER_TRANSACTIONS: 1 * 60 * 1000, // 1 minute - transactions change frequently
 };
