@@ -36,7 +36,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     modalities: ['text'],
     description: 'DeepSeek\'s reasoning model with thinking capability, optimized for Tandemn infrastructure.',
     badges: ['Tandem', 'Thinking', 'Reasoning'],
-    openRouterModelId: 'deepseek/deepseek-r1-distill-llama-70b:free',
+    openRouterModelId: 'deepseek/deepseek-r1-distill-llama-70b',
   },
   {
     id: 'Qwen/Qwen3-32B-AWQ',
@@ -70,7 +70,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     modalities: ['text'],
     description: 'Mistral\'s Devstral model specialized for coding and development tasks.',
     badges: ['Tandem', 'Coding', 'Efficient'],
-    openRouterModelId: 'mistralai/devstral-small-2505:free',
+    openRouterModelId: 'mistralai/devstral-small-2505',
   },
   {
     id: 'casperhansen/llama-3.3-70b-instruct-awq',
@@ -87,7 +87,7 @@ export const MODEL_CONFIGS: ModelConfig[] = [
     modalities: ['text'],
     description: 'Meta\'s latest Llama model optimized for Tandem infrastructure with AWQ quantization.',
     badges: ['Tandem', 'Fast'],
-    openRouterModelId: 'meta-llama/llama-3.3-70b-instruct:free',
+    openRouterModelId: 'meta-llama/llama-3.3-70b-instruct',
   },
 ];
 
@@ -130,7 +130,7 @@ export function getOpenRouterModelId(tandemnModelId: string): string {
   }
   
   // Default fallback to Llama 3.3 70B (free)
-  return 'meta-llama/llama-3.3-70b-instruct:free';
+  return 'meta-llama/llama-3.3-70b-instruct';
 }
 
 // Get KPI stats from model data
