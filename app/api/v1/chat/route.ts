@@ -6,6 +6,21 @@ import { getAPIGateway } from '@/lib/gateway';
 import { db } from '@/mock/db';
 import { getModelEndpoint } from '@/config/model-endpoints';
 
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, { 
+    status: 200,
+    headers: corsHeaders
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Re-enable gateway with fixed Redis-free implementation
@@ -27,7 +42,7 @@ export async function POST(request: NextRequest) {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Missing or invalid Authorization header. Use: Authorization: Bearer YOUR_API_KEY' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       );
     }
 
@@ -38,7 +53,7 @@ export async function POST(request: NextRequest) {
     if (!validation.valid || !validation.userId) {
       return NextResponse.json(
         { error: 'Invalid API key' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       );
     }
 
@@ -51,7 +66,7 @@ export async function POST(request: NextRequest) {
     if (!model || !messages || !Array.isArray(messages)) {
       return NextResponse.json(
         { error: 'Missing required fields: model and messages array' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -69,7 +84,7 @@ export async function POST(request: NextRequest) {
     if (!modelInfo) {
       return NextResponse.json(
         { error: `Model '${model}' not found` },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -114,7 +129,7 @@ export async function POST(request: NextRequest) {
             output_price_per_1m: modelInfo.completionPrice
           }
         },
-        { status: 402 } // Payment Required
+        { status: 402, headers: corsHeaders } // Payment Required
       );
     }
 
@@ -124,7 +139,7 @@ export async function POST(request: NextRequest) {
     if (!chargeSuccess) {
       return NextResponse.json(
         { error: 'Failed to charge credits' },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -166,13 +181,13 @@ export async function POST(request: NextRequest) {
     // Add minimal artificial latency for testing
     await new Promise(resolve => setTimeout(resolve, Math.min(modelInfo.latencyMs || 100, 100)));
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, { headers: corsHeaders });
 
   } catch (error) {
     console.error('Error in /api/v1/chat:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
@@ -184,28 +199,28 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return NextResponse.json(
       { error: 'Missing or invalid Authorization header' },
-      { status: 401 }
+      { status: 401, headers: corsHeaders }
     );
   }
 
   const apiKey = authHeader.substring(7);
   const validation = await validateAPIKey(apiKey);
   if (!validation.valid || !validation.userId) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+    return NextResponse.json({ error: 'Invalid API key' }, { status: 401, headers: corsHeaders });
   }
 
   const { model, messages, max_tokens = 150 } = body;
   if (!model || !messages || !Array.isArray(messages)) {
     return NextResponse.json(
       { error: 'Missing required fields: model and messages array' },
-      { status: 400 }
+      { status: 400, headers: corsHeaders }
     );
   }
 
   // Get model info
   const modelInfo = db.getModelById(model);
   if (!modelInfo) {
-    return NextResponse.json({ error: `Model '${model}' not found` }, { status: 404 });
+    return NextResponse.json({ error: `Model '${model}' not found` }, { status: 404, headers: corsHeaders });
   }
 
   // Check machine availability
@@ -216,7 +231,7 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
     return NextResponse.json({
       error: result.error,
       processing_mode: 'gateway'
-    }, { status: 503 });
+    }, { status: 503, headers: corsHeaders });
   }
 
   // Calculate costs
@@ -232,14 +247,14 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
         credits_required: creditCost,
         credits_available: userCredits,
       },
-      { status: 402 }
+      { status: 402, headers: corsHeaders }
     );
   }
 
   // Charge credits
   const chargeSuccess = await chargeForUsage(model, inputTokens, outputTokens, validation.userId);
   if (!chargeSuccess) {
-    return NextResponse.json({ error: 'Failed to charge credits' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to charge credits' }, { status: 500, headers: corsHeaders });
   }
 
   // Generate response
@@ -278,7 +293,7 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
       total_machines: gateway.getMachines().length,
     },
     batch_request: false,
-  });
+  }, { headers: corsHeaders });
 }
 
 // Forward request to gateway processing (Redis-free version)
@@ -290,7 +305,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Missing or invalid Authorization header. Use: Authorization: Bearer YOUR_API_KEY' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       );
     }
 
@@ -300,7 +315,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     if (!validation.valid || !validation.userId) {
       return NextResponse.json(
         { error: 'Invalid API key' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       );
     }
 
@@ -310,7 +325,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     if (!model || !messages || !Array.isArray(messages)) {
       return NextResponse.json(
         { error: 'Missing required fields: model and messages array' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -324,7 +339,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     if (!modelInfo) {
       return NextResponse.json(
         { error: `Model '${model}' not found` },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -348,7 +363,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
           credits_required: creditCost,
           credits_available: userCredits,
         },
-        { status: 402 }
+        { status: 402, headers: corsHeaders }
       );
     }
 
@@ -368,7 +383,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
           estimated_wait_time_ms: 1000,
         },
         processing_mode: 'gateway'
-      }, { status: 503 });
+      }, { status: 503, headers: corsHeaders });
     }
 
     console.log('Found available instance:', availableInstance.id, 'status:', availableInstance.status);
@@ -394,7 +409,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
         error: result.error || 'Gateway processing failed',
         request_id: requestId,
         processing_mode: 'gateway'
-      }, { status: 500 });
+      }, { status: 500, headers: corsHeaders });
     }
 
     // Calculate actual costs and charge credits
@@ -408,7 +423,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     if (!chargeSuccess) {
       return NextResponse.json(
         { error: 'Failed to charge credits' },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -432,7 +447,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
       batch_request: isBatch,
     };
 
-    return NextResponse.json(enhancedResponse);
+    return NextResponse.json(enhancedResponse, { headers: corsHeaders });
     
   } catch (error) {
     console.error('Gateway forwarding error:', error);
@@ -449,7 +464,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
   if (!modelConfig) {
     return NextResponse.json(
       { error: `Model '${model}' endpoint not configured` },
-      { status: 404 }
+      { status: 404, headers: corsHeaders }
     );
   }
 
@@ -458,7 +473,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
   if (!modelInfo) {
     return NextResponse.json(
       { error: `Model '${model}' not found` },
-      { status: 404 }
+      { status: 404, headers: corsHeaders }
     );
   }
 
@@ -477,7 +492,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
         credits_required: estimatedCost,
         credits_available: userCredits,
       },
-      { status: 402 }
+      { status: 402, headers: corsHeaders }
     );
   }
 
@@ -526,7 +541,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
       console.error(`Model endpoint error: ${response.status} ${response.statusText} - ${errorText}`);
       return NextResponse.json(
         { error: `Model endpoint failed: ${response.statusText}` },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -624,7 +639,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
     console.error('Streaming request failed:', error);
     return NextResponse.json(
       { error: 'Failed to connect to model endpoint' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

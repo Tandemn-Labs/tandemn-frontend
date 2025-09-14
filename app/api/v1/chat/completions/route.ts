@@ -5,6 +5,21 @@ import { getModelEndpoint } from '@/config/model-endpoints';
 import { tandemnClient, mapModelToOpenRouter } from '@/lib/tandemn-client';
 import { openRouterClient } from '@/lib/openrouter-client';
 
+3// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, { 
+    status: 200,
+    headers: corsHeaders
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Extract API key from Authorization header
@@ -12,7 +27,7 @@ export async function POST(request: NextRequest) {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Missing or invalid Authorization header. Use: Authorization: Bearer YOUR_API_KEY' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       );
     }
 
@@ -23,7 +38,7 @@ export async function POST(request: NextRequest) {
     if (!validation.valid || !validation.userId) {
       return NextResponse.json(
         { error: 'Invalid API key' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       );
     }
 
@@ -42,7 +57,7 @@ export async function POST(request: NextRequest) {
     if (max_completion_tokens && max_completion_tokens > 2000) {
       return NextResponse.json(
         { error: 'max_completion_tokens cannot exceed 2000 tokens' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
     
@@ -52,7 +67,7 @@ export async function POST(request: NextRequest) {
     if (!model || !messages || !Array.isArray(messages)) {
       return NextResponse.json(
         { error: 'Missing required fields: model and messages array' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -62,7 +77,7 @@ export async function POST(request: NextRequest) {
       const availableModels = ['casperhansen/deepseek-r1-distill-llama-70b-awq', 'Qwen/Qwen3-32B-AWQ', 'btbtyler09/Devstral-Small-2507-AWQ', 'casperhansen/llama-3.3-70b-instruct-awq'];
       return NextResponse.json(
         { error: `Model '${model}' not found. Available models: ${availableModels.join(', ')}` },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -71,7 +86,7 @@ export async function POST(request: NextRequest) {
     if (!endpointConfig) {
       return NextResponse.json(
         { error: `Model '${model}' is not configured with an endpoint` },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -132,7 +147,7 @@ export async function POST(request: NextRequest) {
             estimated_min_cost: minEstimatedCost
           }
         },
-        { status: 402 } // Payment Required
+        { status: 402, headers: corsHeaders } // Payment Required
       );
     }
 
@@ -351,7 +366,7 @@ export async function POST(request: NextRequest) {
             console.error('❌ Both Tandemn and OpenRouter failed:', fallbackError);
             return NextResponse.json(
               { error: 'Both primary and fallback services failed' },
-              { status: 502 }
+              { status: 502, headers: corsHeaders }
             );
           }
         }
@@ -366,7 +381,7 @@ export async function POST(request: NextRequest) {
         if (!chargeSuccess) {
           return NextResponse.json(
             { error: 'Failed to charge credits' },
-            { status: 500 }
+            { status: 500, headers: corsHeaders }
           );
         }
         
@@ -425,13 +440,13 @@ export async function POST(request: NextRequest) {
           }
         };
         
-        return NextResponse.json(result);
+        return NextResponse.json(result, { headers: corsHeaders });
       }
     } catch (error) {
       console.error('Error calling backend API:', error);
       return NextResponse.json(
         { error: 'Failed to communicate with backend API' },
-        { status: 502 }
+        { status: 502, headers: corsHeaders }
       );
     }
 
@@ -439,7 +454,7 @@ export async function POST(request: NextRequest) {
     console.error('Error in /api/v1/chat/completions:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
