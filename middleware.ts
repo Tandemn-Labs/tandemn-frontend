@@ -32,7 +32,8 @@ const isProtectedRoute = createRouteMatcher([
   '/credits(.*)',
   '/metrics(.*)',
   // '/settings(.*)', // Commented out as settings page is disabled
-  '/keys(.*)'
+  '/keys(.*)',
+  '/admin(.*)'
 ])
 
 export default clerkMiddleware((auth, req) => {
