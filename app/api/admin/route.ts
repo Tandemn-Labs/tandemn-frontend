@@ -31,12 +31,30 @@ export const GET = withAdmin(async (request: NextRequest) => {
     // Get all users
     const allUsers = await clerkClient.users.getUserList({ limit: 100 });
     
+    console.log(`🔍 Admin Debug: Found ${allUsers.data.length} users`);
+    console.log(`🔍 Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    
     const userStats: any[] = [];
     const dailyStats: Record<string, { date: string; totalTokens: number; totalUsers: number; totalRequests: number }> = {};
     
     // Process each user's transaction history
     for (const user of allUsers.data) {
       const transactions = (user.privateMetadata?.transactions as any[]) || [];
+      
+      if (transactions.length > 0) {
+        console.log(`🔍 User ${user.emailAddresses[0]?.emailAddress}: ${transactions.length} total transactions`);
+        const usageTransactions = transactions.filter(t => t.type === 'usage_charge');
+        console.log(`🔍 User ${user.emailAddresses[0]?.emailAddress}: ${usageTransactions.length} usage transactions`);
+        if (usageTransactions.length > 0) {
+          const recentUsage = usageTransactions.filter(t => {
+            const transactionDate = new Date(t.createdAt);
+            console.log(`🔍 Transaction date: ${transactionDate.toISOString()}, Range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+            return transactionDate >= startDate && transactionDate <= endDate;
+          });
+          console.log(`🔍 User ${user.emailAddresses[0]?.emailAddress}: ${recentUsage.length} transactions in date range`);
+        }
+      }
+      
       const usageTransactions = transactions.filter(t => {
         const transactionDate = new Date(t.createdAt);
         return t.type === 'usage_charge' && 

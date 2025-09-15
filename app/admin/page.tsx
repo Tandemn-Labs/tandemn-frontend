@@ -443,7 +443,13 @@ export default function AdminPage() {
                 ))}
                 {stats.userStats.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
-                    No user activity found for the selected period.
+                    <p>No user activity found for the selected period.</p>
+                    <p className="text-sm mt-2">
+                      Period: {stats.summary.period}
+                    </p>
+                    <p className="text-sm">
+                      Try selecting "Last 30 days" or a broader date range.
+                    </p>
                   </div>
                 )}
               </div>
