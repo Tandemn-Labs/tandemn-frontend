@@ -10,6 +10,23 @@ export const GET = withAdmin(async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '30');
+    const startDateParam = searchParams.get('startDate');
+    const endDateParam = searchParams.get('endDate');
+    
+    let startDate: Date;
+    let endDate: Date;
+    
+    if (startDateParam && endDateParam) {
+      // Custom date range
+      startDate = new Date(startDateParam);
+      endDate = new Date(endDateParam);
+      // Set end date to end of day
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      // Days-based range
+      endDate = new Date();
+      startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    }
     
     // Get all users
     const allUsers = await clerkClient.users.getUserList({ limit: 100 });
@@ -20,15 +37,23 @@ export const GET = withAdmin(async (request: NextRequest) => {
     // Process each user's transaction history
     for (const user of allUsers.data) {
       const transactions = (user.privateMetadata?.transactions as any[]) || [];
-      const usageTransactions = transactions.filter(t => 
-        t.type === 'usage_charge' && 
-        new Date(t.createdAt) >= new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-      );
+      const usageTransactions = transactions.filter(t => {
+        const transactionDate = new Date(t.createdAt);
+        return t.type === 'usage_charge' && 
+               transactionDate >= startDate && 
+               transactionDate <= endDate;
+      });
       
       if (usageTransactions.length > 0) {
-        const totalTokens = usageTransactions.reduce((sum, t) => 
-          sum + ((t.metadata?.inputTokens || 0) + (t.metadata?.outputTokens || 0)), 0
+        const totalInputTokens = usageTransactions.reduce((sum, t) => 
+          sum + (t.metadata?.inputTokens || 0), 0
         );
+        
+        const totalOutputTokens = usageTransactions.reduce((sum, t) => 
+          sum + (t.metadata?.outputTokens || 0), 0
+        );
+        
+        const totalTokens = totalInputTokens + totalOutputTokens;
         
         const totalCost = usageTransactions.reduce((sum, t) => 
           sum + Math.abs(t.amount), 0
@@ -38,9 +63,17 @@ export const GET = withAdmin(async (request: NextRequest) => {
         const modelUsage = usageTransactions.reduce((acc, t) => {
           const modelId = t.metadata?.modelId || 'unknown';
           if (!acc[modelId]) {
-            acc[modelId] = { tokens: 0, requests: 0, cost: 0 };
+            acc[modelId] = { 
+              inputTokens: 0, 
+              outputTokens: 0, 
+              totalTokens: 0, 
+              requests: 0, 
+              cost: 0 
+            };
           }
-          acc[modelId].tokens += (t.metadata?.inputTokens || 0) + (t.metadata?.outputTokens || 0);
+          acc[modelId].inputTokens += (t.metadata?.inputTokens || 0);
+          acc[modelId].outputTokens += (t.metadata?.outputTokens || 0);
+          acc[modelId].totalTokens += (t.metadata?.inputTokens || 0) + (t.metadata?.outputTokens || 0);
           acc[modelId].requests += 1;
           acc[modelId].cost += Math.abs(t.amount);
           return acc;
@@ -51,6 +84,8 @@ export const GET = withAdmin(async (request: NextRequest) => {
           email: user.emailAddresses[0]?.emailAddress || 'unknown',
           firstName: user.firstName,
           lastName: user.lastName,
+          totalInputTokens,
+          totalOutputTokens,
           totalTokens,
           totalCost,
           requestCount: usageTransactions.length,
@@ -58,9 +93,13 @@ export const GET = withAdmin(async (request: NextRequest) => {
           lastActivity: Math.max(...usageTransactions.map(t => new Date(t.createdAt).getTime()))
         });
         
-        // Aggregate daily stats
+        // Aggregate daily stats (in EST timezone)
         usageTransactions.forEach(t => {
-          const date = new Date(t.createdAt).toISOString().split('T')[0];
+          const transactionDate = new Date(t.createdAt);
+          // Convert to EST and get date string
+          const date = transactionDate.toLocaleDateString('en-CA', {
+            timeZone: 'America/New_York'
+          }); // ISO format YYYY-MM-DD in EST
           if (!dailyStats[date]) {
             dailyStats[date] = { date, totalTokens: 0, totalUsers: 0, totalRequests: 0 };
           }
@@ -74,6 +113,8 @@ export const GET = withAdmin(async (request: NextRequest) => {
           email: user.emailAddresses[0]?.emailAddress || 'unknown',
           firstName: user.firstName,
           lastName: user.lastName,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
           totalTokens: 0,
           totalCost: 0,
           requestCount: 0,
@@ -88,10 +129,17 @@ export const GET = withAdmin(async (request: NextRequest) => {
       const usersOnDate = new Set();
       allUsers.data.forEach(user => {
         const transactions = (user.privateMetadata?.transactions as any[]) || [];
-        const hasActivityOnDate = transactions.some(t => 
-          t.type === 'usage_charge' && 
-          new Date(t.createdAt).toISOString().split('T')[0] === date
-        );
+        const hasActivityOnDate = transactions.some(t => {
+          const transactionDate = new Date(t.createdAt);
+          // Convert to EST date string for comparison
+          const estDate = transactionDate.toLocaleDateString('en-CA', {
+            timeZone: 'America/New_York'
+          });
+          return t.type === 'usage_charge' && 
+                 estDate === date &&
+                 transactionDate >= startDate && 
+                 transactionDate <= endDate;
+        });
         if (hasActivityOnDate) {
           usersOnDate.add(user.id);
         }
@@ -120,7 +168,9 @@ export const GET = withAdmin(async (request: NextRequest) => {
         totalTokensProcessed,
         totalRequests,
         totalCost,
-        period: `${days} days`
+        period: startDateParam && endDateParam ? 
+          `${startDateParam} to ${endDateParam}` : 
+          `${days} days`
       },
       userStats,
       dailyStats: sortedDailyStats,

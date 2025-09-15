@@ -14,10 +14,18 @@ interface UserStats {
   email: string;
   firstName: string | null;
   lastName: string | null;
+  totalInputTokens: number;
+  totalOutputTokens: number;
   totalTokens: number;
   totalCost: number;
   requestCount: number;
-  modelUsage: Record<string, { tokens: number; requests: number; cost: number }>;
+  modelUsage: Record<string, { 
+    inputTokens: number; 
+    outputTokens: number; 
+    totalTokens: number; 
+    requests: number; 
+    cost: number 
+  }>;
   lastActivity: number | null;
 }
 
@@ -48,7 +56,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState('30');
-  const [customDays, setCustomDays] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -81,7 +90,21 @@ export default function AdminPage() {
     setError(null);
     
     try {
-      const response = await fetch(`/api/admin?days=${period}`);
+      let url = '/api/admin';
+      const params = new URLSearchParams();
+      
+      if (period === 'custom' && startDate && endDate) {
+        params.append('startDate', startDate);
+        params.append('endDate', endDate);
+      } else if (period !== 'custom') {
+        params.append('days', period);
+      }
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
+      const response = await fetch(url);
       if (!response.ok) {
         if (response.status === 403) {
           setError('Admin access required');
@@ -104,17 +127,28 @@ export default function AdminPage() {
   const handlePeriodChange = (newPeriod: string) => {
     setPeriod(newPeriod);
     if (newPeriod !== 'custom') {
-      setCustomDays('');
+      setStartDate('');
+      setEndDate('');
       // Refetch data with new period
       setTimeout(fetchStats, 100);
     }
   };
 
-  const handleCustomDaysSubmit = () => {
-    if (customDays && !isNaN(Number(customDays)) && Number(customDays) > 0) {
-      setPeriod(customDays);
+  const handleDateRangeSubmit = () => {
+    if (startDate && endDate && new Date(startDate) <= new Date(endDate)) {
       setTimeout(fetchStats, 100);
     }
+  };
+
+  const setPresetDateRange = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days);
+    
+    setEndDate(end.toISOString().split('T')[0]);
+    setStartDate(start.toISOString().split('T')[0]);
+    setPeriod('custom');
+    setTimeout(fetchStats, 100);
   };
 
   if (!userId) {
@@ -184,15 +218,32 @@ export default function AdminPage() {
   };
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString();
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const formatDateTime = (timestamp: number | string) => {
+    return new Date(timestamp).toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
   };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <div className="flex items-center gap-4">
-          <Select value={period === customDays && customDays ? 'custom' : period} onValueChange={handlePeriodChange}>
+        <div className="flex items-center gap-4 flex-wrap">
+          <Select value={period} onValueChange={handlePeriodChange}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
@@ -200,25 +251,49 @@ export default function AdminPage() {
               <SelectItem value="7">Last 7 days</SelectItem>
               <SelectItem value="30">Last 30 days</SelectItem>
               <SelectItem value="90">Last 90 days</SelectItem>
-              <SelectItem value="custom">Custom days</SelectItem>
+              <SelectItem value="custom">Custom date range</SelectItem>
             </SelectContent>
           </Select>
-          {(period === 'custom' || (customDays && period === customDays)) && (
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                placeholder="Enter days"
-                value={customDays}
-                onChange={(e) => setCustomDays(e.target.value)}
-                className="w-32"
-                min="1"
-                max="365"
-              />
-              <Button onClick={handleCustomDaysSubmit} size="sm">
+          
+          {period === 'custom' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">From:</label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-36"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">To:</label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-36"
+                />
+              </div>
+              <Button 
+                onClick={handleDateRangeSubmit} 
+                size="sm"
+                disabled={!startDate || !endDate || new Date(startDate) > new Date(endDate)}
+              >
                 Apply
               </Button>
             </div>
           )}
+          
+          {period === 'custom' && (
+            <div className="flex items-center gap-1 ml-4">
+              <span className="text-sm text-muted-foreground">Quick:</span>
+              <Button onClick={() => setPresetDateRange(7)} variant="outline" size="sm">7d</Button>
+              <Button onClick={() => setPresetDateRange(30)} variant="outline" size="sm">30d</Button>
+              <Button onClick={() => setPresetDateRange(90)} variant="outline" size="sm">90d</Button>
+            </div>
+          )}
+          
           <Button onClick={fetchStats} variant="outline">
             Refresh
           </Button>
@@ -226,7 +301,7 @@ export default function AdminPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -241,12 +316,28 @@ export default function AdminPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Tokens</CardTitle>
+            <CardTitle className="text-sm font-medium">Input Tokens</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(stats.summary.totalTokensProcessed)}</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {formatNumber(stats.userStats.reduce((sum, user) => sum + user.totalInputTokens, 0))}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Tokens processed in {stats.summary.period}
+              Input tokens in {stats.summary.period}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Output Tokens</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {formatNumber(stats.userStats.reduce((sum, user) => sum + user.totalOutputTokens, 0))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Output tokens in {stats.summary.period}
             </p>
           </CardContent>
         </Card>
@@ -318,19 +409,32 @@ export default function AdminPage() {
                       <div className="text-sm text-muted-foreground">{user.email}</div>
                       <div className="text-xs text-muted-foreground mt-1">
                         {user.lastActivity 
-                          ? `Last active: ${formatDate(new Date(user.lastActivity).toISOString())}` 
+                          ? `Last active: ${formatDateTime(user.lastActivity)} EST` 
                           : 'No recent activity'}
                       </div>
                     </div>
                     <div className="text-right space-y-1">
-                      <div className="font-bold">{formatNumber(user.totalTokens)} tokens</div>
+                      <div className="space-y-1">
+                        <div className="font-bold">{formatNumber(user.totalTokens)} total tokens</div>
+                        <div className="text-sm space-x-4">
+                          <span className="text-blue-600">
+                            ↑ {formatNumber(user.totalInputTokens)} in
+                          </span>
+                          <span className="text-green-600">
+                            ↓ {formatNumber(user.totalOutputTokens)} out
+                          </span>
+                        </div>
+                      </div>
                       <div className="text-sm text-muted-foreground">
                         {user.requestCount} requests • {formatCurrency(user.totalCost)}
                       </div>
-                      <div className="flex gap-1 justify-end">
+                      <div className="flex gap-1 justify-end flex-wrap">
                         {Object.entries(user.modelUsage).map(([modelId, usage]) => (
                           <Badge key={modelId} variant="secondary" className="text-xs">
-                            {modelId.split('/').pop()}: {formatNumber(usage.tokens)}
+                            {modelId.split('/').pop()}: 
+                            <span className="text-blue-500 ml-1">{formatNumber(usage.inputTokens)}</span>
+                            <span className="mx-1">/</span>
+                            <span className="text-green-500">{formatNumber(usage.outputTokens)}</span>
                           </Badge>
                         ))}
                       </div>
@@ -359,7 +463,7 @@ export default function AdminPage() {
               <div className="space-y-3">
                 {stats.dailyStats.map((day) => (
                   <div key={day.date} className="flex items-center justify-between p-3 border rounded">
-                    <div className="font-medium">{formatDate(day.date)}</div>
+                    <div className="font-medium">{formatDate(day.date)} EST</div>
                     <div className="text-right">
                       <div className="font-bold">{formatNumber(day.totalTokens)} tokens</div>
                       <div className="text-sm text-muted-foreground">
@@ -380,7 +484,16 @@ export default function AdminPage() {
       </Tabs>
 
       <div className="text-xs text-muted-foreground text-center">
-        Last updated: {new Date(stats.generatedAt).toLocaleString()}
+        Last updated: {new Date(stats.generatedAt).toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true
+        })} EST
       </div>
     </div>
   );
