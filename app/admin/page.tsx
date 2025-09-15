@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface UserStats {
   userId: string;
@@ -27,6 +28,15 @@ interface UserStats {
     cost: number 
   }>;
   lastActivity: number | null;
+  dailyUsage?: Record<string, {
+    date: string;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    requests: number;
+    cost: number;
+    models: Record<string, { inputTokens: number; outputTokens: number; requests: number; cost: number }>;
+  }>;
 }
 
 interface DailyStats {
@@ -59,6 +69,8 @@ export default function AdminPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserStats | null>(null);
+  const [showUserDetails, setShowUserDetails] = useState(false);
 
   useEffect(() => {
     // Check admin status first
@@ -149,6 +161,36 @@ export default function AdminPage() {
     setStartDate(start.toISOString().split('T')[0]);
     setPeriod('custom');
     setTimeout(fetchStats, 100);
+  };
+
+  const handleUserClick = async (user: UserStats) => {
+    setSelectedUser(user);
+    setShowUserDetails(true);
+    
+    // Fetch detailed user data
+    try {
+      let url = `/api/admin/user/${user.userId}`;
+      const params = new URLSearchParams();
+      
+      if (period === 'custom' && startDate && endDate) {
+        params.append('startDate', startDate);
+        params.append('endDate', endDate);
+      } else if (period !== 'custom') {
+        params.append('days', period);
+      }
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
+      const response = await fetch(url);
+      if (response.ok) {
+        const detailData = await response.json();
+        setSelectedUser({...user, dailyUsage: detailData.dailyUsage});
+      }
+    } catch (error) {
+      console.error('Failed to fetch user details:', error);
+    }
   };
 
   if (!userId) {
@@ -399,7 +441,10 @@ export default function AdminPage() {
             <CardContent>
               <div className="space-y-4">
                 {stats.userStats.map((user) => (
-                  <div key={user.userId} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div 
+                    key={user.userId} 
+                    className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => handleUserClick(user)}>
                     <div className="flex-1">
                       <div className="font-medium">
                         {user.firstName && user.lastName 
@@ -501,6 +546,111 @@ export default function AdminPage() {
           hour12: true
         })} EST
       </div>
+
+      {/* User Details Modal */}
+      <Dialog open={showUserDetails} onOpenChange={setShowUserDetails}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedUser?.firstName && selectedUser?.lastName 
+                ? `${selectedUser.firstName} ${selectedUser.lastName}` 
+                : selectedUser?.email}
+            </DialogTitle>
+            <DialogDescription>
+              Daily token usage breakdown for {selectedUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedUser && (
+            <div className="space-y-6">
+              {/* Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Total Tokens</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-xl font-bold">{formatNumber(selectedUser.totalTokens)}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Input Tokens</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-xl font-bold text-blue-600">{formatNumber(selectedUser.totalInputTokens)}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Output Tokens</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-xl font-bold text-green-600">{formatNumber(selectedUser.totalOutputTokens)}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Total Cost</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-xl font-bold">{formatCurrency(selectedUser.totalCost)}</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Daily Breakdown */}
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Daily Usage Breakdown</h3>
+                <div className="space-y-3">
+                  {selectedUser.dailyUsage ? (
+                    Object.values(selectedUser.dailyUsage)
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map((day) => (
+                        <Card key={day.date}>
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h4 className="font-medium">{formatDate(day.date)} EST</h4>
+                                <div className="text-sm text-muted-foreground mt-1">
+                                  {day.requests} requests
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold">{formatNumber(day.totalTokens)} total tokens</div>
+                                <div className="text-sm space-x-2">
+                                  <span className="text-blue-600">↑ {formatNumber(day.inputTokens)}</span>
+                                  <span className="text-green-600">↓ {formatNumber(day.outputTokens)}</span>
+                                </div>
+                                <div className="text-sm text-muted-foreground">{formatCurrency(day.cost)}</div>
+                              </div>
+                            </div>
+                            
+                            {/* Model breakdown for the day */}
+                            <div className="flex gap-2 mt-3 flex-wrap">
+                              {Object.entries(day.models).map(([modelId, usage]) => (
+                                <Badge key={modelId} variant="secondary" className="text-xs">
+                                  {modelId.split('/').pop()}: 
+                                  <span className="text-blue-500 ml-1">{formatNumber(usage.inputTokens)}</span>
+                                  <span className="mx-1">/</span>
+                                  <span className="text-green-500">{formatNumber(usage.outputTokens)}</span>
+                                </Badge>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Loading daily breakdown...
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
