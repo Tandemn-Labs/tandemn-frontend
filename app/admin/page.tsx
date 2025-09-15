@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
-import { Badge } from '@/src/components/ui/badge';
-import { Button } from '@/src/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 
 interface UserStats {
   userId: string;
@@ -47,6 +48,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState('30');
+  const [customDays, setCustomDays] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -101,8 +103,18 @@ export default function AdminPage() {
 
   const handlePeriodChange = (newPeriod: string) => {
     setPeriod(newPeriod);
-    // Refetch data with new period
-    setTimeout(fetchStats, 100);
+    if (newPeriod !== 'custom') {
+      setCustomDays('');
+      // Refetch data with new period
+      setTimeout(fetchStats, 100);
+    }
+  };
+
+  const handleCustomDaysSubmit = () => {
+    if (customDays && !isNaN(Number(customDays)) && Number(customDays) > 0) {
+      setPeriod(customDays);
+      setTimeout(fetchStats, 100);
+    }
   };
 
   if (!userId) {
@@ -180,7 +192,7 @@ export default function AdminPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
         <div className="flex items-center gap-4">
-          <Select value={period} onValueChange={handlePeriodChange}>
+          <Select value={period === customDays && customDays ? 'custom' : period} onValueChange={handlePeriodChange}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
@@ -188,8 +200,25 @@ export default function AdminPage() {
               <SelectItem value="7">Last 7 days</SelectItem>
               <SelectItem value="30">Last 30 days</SelectItem>
               <SelectItem value="90">Last 90 days</SelectItem>
+              <SelectItem value="custom">Custom days</SelectItem>
             </SelectContent>
           </Select>
+          {(period === 'custom' || (customDays && period === customDays)) && (
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                placeholder="Enter days"
+                value={customDays}
+                onChange={(e) => setCustomDays(e.target.value)}
+                className="w-32"
+                min="1"
+                max="365"
+              />
+              <Button onClick={handleCustomDaysSubmit} size="sm">
+                Apply
+              </Button>
+            </div>
+          )}
           <Button onClick={fetchStats} variant="outline">
             Refresh
           </Button>
