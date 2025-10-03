@@ -46,10 +46,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       data: {
-        balance: Math.round(balance * 10000) / 10000, // Round to 4 decimal places
+        balance: balance, // Full precision, no rounding
         currency: 'USD',
         monthly_usage: {
-          spent: Math.round(monthlySpent * 10000) / 10000,
+          spent: monthlySpent, // Full precision, no rounding
           api_calls: monthlyApiCalls,
           period: `${startOfMonth.toISOString().split('T')[0]} to ${now.toISOString().split('T')[0]}`
         },

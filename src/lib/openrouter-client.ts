@@ -99,6 +99,94 @@ export class OpenRouterClient {
       throw error;
     }
   }
+
+  async chatStreamWithTimeout(
+    request: OpenRouterChatRequest,
+    onChunk: (content: string) => void,
+    timeoutMs: number = 30000
+  ): Promise<void> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const streamingRequest = { ...request, stream: true };
+      
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://tandemn.ai',
+          'X-Title': 'Tandemn Frontend',
+        },
+        body: JSON.stringify(streamingRequest),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenRouter API error: ${response.statusText} - ${errorText}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('Response body is not readable');
+      }
+
+      try {
+        let buffer = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          
+          // Process complete lines
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+          
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            
+            if (trimmedLine === '') continue;
+            if (trimmedLine === 'data: [DONE]') return;
+            if (!trimmedLine.startsWith('data: ')) continue;
+            
+            try {
+              const jsonData = trimmedLine.slice(6); // Remove 'data: ' prefix
+              const chunk = JSON.parse(jsonData);
+              
+              // Extract content from OpenRouter streaming format
+              const content = chunk.choices?.[0]?.delta?.content;
+              if (content) {
+                onChunk(content);
+              }
+            } catch (parseError) {
+              // Only log if it's not just an empty chunk
+              if (trimmedLine !== 'data: [DONE]' && trimmedLine.trim() !== '') {
+                console.warn('Failed to parse OpenRouter SSE chunk:', trimmedLine, 'Error:', parseError);
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('OpenRouter API request timed out');
+      }
+      throw error;
+    }
+  }
 }
 
 // Create a singleton instance

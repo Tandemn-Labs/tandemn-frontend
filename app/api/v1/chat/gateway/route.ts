@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateAPIKey, chargeForUsage, getUserCredits, calculateTokenCost } from '@/lib/credits';
+import { validateAPIKey, chargeForUsage, getUserCredits } from '@/lib/credits';
+import { calculateCost } from '@/config/models';
 import { getAPIGateway } from '@/lib/gateway';
 import { getQueueProcessor } from '@/lib/queue-processor';
 import { db } from '@/mock/db';
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
       outputTokens *= 2;
     }
 
-    const creditCost = calculateTokenCost(model, inputTokens, outputTokens);
+    const creditCost = calculateCost(model, inputTokens, outputTokens);
 
     // Check user credits
     const userCredits = await getUserCredits(userId);
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
     const responseData = result.data;
     const actualInputTokens = responseData.usage?.prompt_tokens || inputTokens;
     const actualOutputTokens = responseData.usage?.completion_tokens || outputTokens;
-    const actualCreditCost = calculateTokenCost(model, actualInputTokens, actualOutputTokens);
+    const actualCreditCost = calculateCost(model, actualInputTokens, actualOutputTokens);
 
     // Charge credits based on actual usage
     const chargeSuccess = await chargeForUsage(model, actualInputTokens, actualOutputTokens, userId);
@@ -166,9 +167,9 @@ export async function POST(request: NextRequest) {
       ...responseData,
       pricing: {
         credits_charged: actualCreditCost,
-        credits_remaining: Math.round((userCredits - actualCreditCost) * 100) / 100,
-        input_cost: Math.round(((actualInputTokens / 1000000) * modelInfo.promptPrice) * 100) / 100,
-        output_cost: Math.round(((actualOutputTokens / 1000000) * modelInfo.completionPrice) * 100) / 100,
+        credits_remaining: userCredits - actualCreditCost, // Full precision, no rounding
+        input_cost: (actualInputTokens / 1000000) * modelInfo.promptPrice, // Full precision, no rounding
+        output_cost: (actualOutputTokens / 1000000) * modelInfo.completionPrice, // Full precision, no rounding
         input_price_per_1m_tokens: modelInfo.promptPrice,
         output_price_per_1m_tokens: modelInfo.completionPrice,
       },

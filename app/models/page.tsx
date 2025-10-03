@@ -155,7 +155,7 @@ export default function ModelsPage() {
     
     const headerString = headers.map(h => `--header '${h}'`).join(' \\\n');
     
-    return `curl --location '${domain}/api/v1/chat/complete' \\
+    return `curl --location '${domain}/api/v1/chat/completions' \\
 ${headerString} \\
 --data '${JSON.stringify(body, null, 2)}'`;
   };
@@ -165,7 +165,7 @@ ${headerString} \\
     const domain = getApiDomain();
     return `import requests
 
-url = "${domain}/api/v1/chat/complete"
+url = "${domain}/api/v1/chat/completions"
 headers = {
     "Authorization": f"Bearer ${apiKey}",
     "Content-Type": "application/json"
@@ -186,7 +186,7 @@ print(response.json())`;
     const domain = getApiDomain();
     return `const fetch = require('node-fetch');
 
-const response = await fetch('${domain}/api/v1/chat/complete', {
+const response = await fetch('${domain}/api/v1/chat/completions', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer ${apiKey}',

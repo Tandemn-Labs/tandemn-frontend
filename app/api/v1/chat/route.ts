@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateAPIKey, chargeForUsage, getUserCredits, calculateTokenCost } from '@/lib/credits';
+import { validateAPIKey, chargeForUsage, getUserCredits } from '@/lib/credits';
+import { calculateCost } from '@/config/models';
 import { getSimpleGateway } from '@/lib/simple-gateway';
 import { getAPIGateway } from '@/lib/gateway';
 import { db } from '@/mock/db';
 import { getModelEndpoint } from '@/config/model-endpoints';
+
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, { 
+    status: 200,
+    headers: corsHeaders
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +42,7 @@ export async function POST(request: NextRequest) {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Missing or invalid Authorization header. Use: Authorization: Bearer YOUR_API_KEY' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       );
     }
 
@@ -37,7 +53,7 @@ export async function POST(request: NextRequest) {
     if (!validation.valid || !validation.userId) {
       return NextResponse.json(
         { error: 'Invalid API key' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       );
     }
 
@@ -50,7 +66,7 @@ export async function POST(request: NextRequest) {
     if (!model || !messages || !Array.isArray(messages)) {
       return NextResponse.json(
         { error: 'Missing required fields: model and messages array' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -68,7 +84,7 @@ export async function POST(request: NextRequest) {
     if (!modelInfo) {
       return NextResponse.json(
         { error: `Model '${model}' not found` },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -96,7 +112,7 @@ export async function POST(request: NextRequest) {
     const totalTokens = inputTokens + outputTokens;
 
     // Calculate cost based on tokens
-    const creditCost = calculateTokenCost(model, inputTokens, outputTokens);
+    const creditCost = calculateCost(model, inputTokens, outputTokens);
 
     // Check user credits
     const userCredits = await getUserCredits(userId);
@@ -113,7 +129,7 @@ export async function POST(request: NextRequest) {
             output_price_per_1m: modelInfo.completionPrice
           }
         },
-        { status: 402 } // Payment Required
+        { status: 402, headers: corsHeaders } // Payment Required
       );
     }
 
@@ -123,7 +139,7 @@ export async function POST(request: NextRequest) {
     if (!chargeSuccess) {
       return NextResponse.json(
         { error: 'Failed to charge credits' },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -152,9 +168,9 @@ export async function POST(request: NextRequest) {
       // Enhanced pricing information
       pricing: {
         credits_charged: creditCost,
-        credits_remaining: Math.round((userCredits - creditCost) * 100) / 100,
-        input_cost: Math.round(((inputTokens / 1000000) * modelInfo.promptPrice) * 100) / 100,
-        output_cost: Math.round(((outputTokens / 1000000) * modelInfo.completionPrice) * 100) / 100,
+        credits_remaining: userCredits - creditCost, // Full precision, no rounding
+        input_cost: (inputTokens / 1000000) * modelInfo.promptPrice, // Full precision, no rounding
+        output_cost: (outputTokens / 1000000) * modelInfo.completionPrice, // Full precision, no rounding
         input_price_per_1m_tokens: modelInfo.promptPrice,
         output_price_per_1m_tokens: modelInfo.completionPrice,
       },
@@ -165,13 +181,13 @@ export async function POST(request: NextRequest) {
     // Add minimal artificial latency for testing
     await new Promise(resolve => setTimeout(resolve, Math.min(modelInfo.latencyMs || 100, 100)));
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, { headers: corsHeaders });
 
   } catch (error) {
     console.error('Error in /api/v1/chat:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
@@ -183,28 +199,28 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return NextResponse.json(
       { error: 'Missing or invalid Authorization header' },
-      { status: 401 }
+      { status: 401, headers: corsHeaders }
     );
   }
 
   const apiKey = authHeader.substring(7);
   const validation = await validateAPIKey(apiKey);
   if (!validation.valid || !validation.userId) {
-    return NextResponse.json({ error: 'Invalid API key' }, { status: 401 });
+    return NextResponse.json({ error: 'Invalid API key' }, { status: 401, headers: corsHeaders });
   }
 
   const { model, messages, max_tokens = 150 } = body;
   if (!model || !messages || !Array.isArray(messages)) {
     return NextResponse.json(
       { error: 'Missing required fields: model and messages array' },
-      { status: 400 }
+      { status: 400, headers: corsHeaders }
     );
   }
 
   // Get model info
   const modelInfo = db.getModelById(model);
   if (!modelInfo) {
-    return NextResponse.json({ error: `Model '${model}' not found` }, { status: 404 });
+    return NextResponse.json({ error: `Model '${model}' not found` }, { status: 404, headers: corsHeaders });
   }
 
   // Check machine availability
@@ -215,13 +231,13 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
     return NextResponse.json({
       error: result.error,
       processing_mode: 'gateway'
-    }, { status: 503 });
+    }, { status: 503, headers: corsHeaders });
   }
 
   // Calculate costs
   const inputTokens = Math.ceil(JSON.stringify(messages).length / 4);
   const outputTokens = Math.ceil(15); // Estimated response length
-  const creditCost = calculateTokenCost(model, inputTokens, outputTokens);
+  const creditCost = calculateCost(model, inputTokens, outputTokens);
   const userCredits = await getUserCredits(validation.userId);
   
   if (userCredits < creditCost) {
@@ -231,14 +247,14 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
         credits_required: creditCost,
         credits_available: userCredits,
       },
-      { status: 402 }
+      { status: 402, headers: corsHeaders }
     );
   }
 
   // Charge credits
   const chargeSuccess = await chargeForUsage(model, inputTokens, outputTokens, validation.userId);
   if (!chargeSuccess) {
-    return NextResponse.json({ error: 'Failed to charge credits' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to charge credits' }, { status: 500, headers: corsHeaders });
   }
 
   // Generate response
@@ -268,7 +284,7 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
     },
     pricing: {
       credits_charged: creditCost,
-      credits_remaining: Math.round((userCredits - creditCost) * 100) / 100,
+      credits_remaining: userCredits - creditCost, // Full precision, no rounding
     },
     gateway: {
       machine_number: result.machine!.machineNumber,
@@ -277,7 +293,7 @@ async function processWithSimpleGateway(request: NextRequest, body: any): Promis
       total_machines: gateway.getMachines().length,
     },
     batch_request: false,
-  });
+  }, { headers: corsHeaders });
 }
 
 // Forward request to gateway processing (Redis-free version)
@@ -289,7 +305,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
         { error: 'Missing or invalid Authorization header. Use: Authorization: Bearer YOUR_API_KEY' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       );
     }
 
@@ -299,7 +315,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     if (!validation.valid || !validation.userId) {
       return NextResponse.json(
         { error: 'Invalid API key' },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       );
     }
 
@@ -309,7 +325,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     if (!model || !messages || !Array.isArray(messages)) {
       return NextResponse.json(
         { error: 'Missing required fields: model and messages array' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -323,7 +339,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     if (!modelInfo) {
       return NextResponse.json(
         { error: `Model '${model}' not found` },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -337,7 +353,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     }
 
     console.log('Calculating costs...');
-    const creditCost = calculateTokenCost(model, inputTokens, outputTokens);
+    const creditCost = calculateCost(model, inputTokens, outputTokens);
     const userCredits = await getUserCredits(userId);
     
     if (userCredits < creditCost) {
@@ -347,7 +363,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
           credits_required: creditCost,
           credits_available: userCredits,
         },
-        { status: 402 }
+        { status: 402, headers: corsHeaders }
       );
     }
 
@@ -367,7 +383,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
           estimated_wait_time_ms: 1000,
         },
         processing_mode: 'gateway'
-      }, { status: 503 });
+      }, { status: 503, headers: corsHeaders });
     }
 
     console.log('Found available instance:', availableInstance.id, 'status:', availableInstance.status);
@@ -393,7 +409,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
         error: result.error || 'Gateway processing failed',
         request_id: requestId,
         processing_mode: 'gateway'
-      }, { status: 500 });
+      }, { status: 500, headers: corsHeaders });
     }
 
     // Calculate actual costs and charge credits
@@ -401,13 +417,13 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
     const responseData = result.data;
     const actualInputTokens = responseData.usage?.prompt_tokens || inputTokens;
     const actualOutputTokens = responseData.usage?.completion_tokens || outputTokens;
-    const actualCreditCost = calculateTokenCost(model, actualInputTokens, actualOutputTokens);
+    const actualCreditCost = calculateCost(model, actualInputTokens, actualOutputTokens);
 
     const chargeSuccess = await chargeForUsage(model, actualInputTokens, actualOutputTokens, userId);
     if (!chargeSuccess) {
       return NextResponse.json(
         { error: 'Failed to charge credits' },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -417,9 +433,9 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
       ...responseData,
       pricing: {
         credits_charged: actualCreditCost,
-        credits_remaining: Math.round((userCredits - actualCreditCost) * 100) / 100,
-        input_cost: Math.round(((actualInputTokens / 1000000) * modelInfo.promptPrice) * 100) / 100,
-        output_cost: Math.round(((actualOutputTokens / 1000000) * modelInfo.completionPrice) * 100) / 100,
+        credits_remaining: userCredits - actualCreditCost, // Full precision, no rounding
+        input_cost: (actualInputTokens / 1000000) * modelInfo.promptPrice, // Full precision, no rounding
+        output_cost: (actualOutputTokens / 1000000) * modelInfo.completionPrice, // Full precision, no rounding
         input_price_per_1m_tokens: modelInfo.promptPrice,
         output_price_per_1m_tokens: modelInfo.completionPrice,
       },
@@ -431,7 +447,7 @@ async function forwardToGateway(request: NextRequest, body: any): Promise<NextRe
       batch_request: isBatch,
     };
 
-    return NextResponse.json(enhancedResponse);
+    return NextResponse.json(enhancedResponse, { headers: corsHeaders });
     
   } catch (error) {
     console.error('Gateway forwarding error:', error);
@@ -448,7 +464,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
   if (!modelConfig) {
     return NextResponse.json(
       { error: `Model '${model}' endpoint not configured` },
-      { status: 404 }
+      { status: 404, headers: corsHeaders }
     );
   }
 
@@ -457,7 +473,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
   if (!modelInfo) {
     return NextResponse.json(
       { error: `Model '${model}' not found` },
-      { status: 404 }
+      { status: 404, headers: corsHeaders }
     );
   }
 
@@ -465,7 +481,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
   const conversationText = JSON.stringify(messages);
   const inputTokens = Math.ceil(conversationText.length / 4);
   const estimatedOutputTokens = Math.ceil(max_tokens / 4);
-  const estimatedCost = calculateTokenCost(model, inputTokens, estimatedOutputTokens);
+  const estimatedCost = calculateCost(model, inputTokens, estimatedOutputTokens);
 
   // Check user credits
   const userCredits = await getUserCredits(userId);
@@ -476,7 +492,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
         credits_required: estimatedCost,
         credits_available: userCredits,
       },
-      { status: 402 }
+      { status: 402, headers: corsHeaders }
     );
   }
 
@@ -525,7 +541,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
       console.error(`Model endpoint error: ${response.status} ${response.statusText} - ${errorText}`);
       return NextResponse.json(
         { error: `Model endpoint failed: ${response.statusText}` },
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
 
@@ -591,7 +607,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
           
           // Calculate actual costs and charge
           totalOutputTokens = Math.ceil(responseContent.length / 4);
-          const actualCost = calculateTokenCost(model, inputTokens, totalOutputTokens);
+          const actualCost = calculateCost(model, inputTokens, totalOutputTokens);
           
           // Charge credits based on actual usage
           await chargeForUsage(model, inputTokens, totalOutputTokens, userId);
@@ -623,7 +639,7 @@ async function handleStreamingRequest(request: NextRequest, body: any, userId: s
     console.error('Streaming request failed:', error);
     return NextResponse.json(
       { error: 'Failed to connect to model endpoint' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

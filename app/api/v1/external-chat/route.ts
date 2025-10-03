@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { externalChatAPI, tandemChatAPI, convertMessages, ExternalChatAPI } from '@/lib/external-chat-api';
 import { externalChatCompletionSchema } from '@/lib/zod-schemas';
-import { validateAPIKey, chargeForUsage, getUserCredits, calculateTokenCost } from '@/lib/credits';
+import { validateAPIKey, chargeForUsage, getUserCredits } from '@/lib/credits';
+import { calculateCost } from '@/config/models';
 
 export async function POST(request: NextRequest) {
   try {
@@ -162,7 +163,7 @@ async function tryTandemChat(
       // Calculate costs based on response
       const inputTokens = tandemResponse.usage.prompt_tokens || Math.ceil(JSON.stringify(validatedRequest.messages).length / 4);
       const outputTokens = tandemResponse.usage.completion_tokens || 50;
-      const creditCost = calculateTokenCost('casperhansen/llama-3.3-70b-instruct-awq', inputTokens, outputTokens);
+      const creditCost = calculateCost('casperhansen/llama-3.3-70b-instruct-awq', inputTokens, outputTokens);
       
       // Charge credits
       const chargeSuccess = await chargeForUsage('casperhansen/llama-3.3-70b-instruct-awq', inputTokens, outputTokens, userId);
@@ -177,7 +178,7 @@ async function tryTandemChat(
         ...tandemResponse,
         pricing: {
           credits_charged: creditCost,
-          credits_remaining: Math.round((userCredits - creditCost) * 100) / 100,
+          credits_remaining: userCredits - creditCost, // Full precision, no rounding
           input_tokens: inputTokens,
           output_tokens: outputTokens,
         },
@@ -249,7 +250,7 @@ async function handleTandemStreaming(
         controller.close();
 
         // Charge credits after streaming is complete
-        const creditCost = calculateTokenCost('casperhansen/llama-3.3-70b-instruct-awq', estimatedInputTokens, totalOutputTokens);
+        const creditCost = calculateCost('casperhansen/llama-3.3-70b-instruct-awq', estimatedInputTokens, totalOutputTokens);
         await chargeForUsage('casperhansen/llama-3.3-70b-instruct-awq', estimatedInputTokens, totalOutputTokens, userId);
         
       } catch (error) {
@@ -284,7 +285,7 @@ async function handleOpenRouterRequest(
   const estimatedOutputTokens = validatedRequest.max_completion_tokens || 150;
   
   // Use OpenRouter pricing for Llama 3.3 70B (approximate)
-  const estimatedCreditCost = calculateTokenCost('meta-llama/llama-3.3-70b-instruct', inputTokens, estimatedOutputTokens);
+  const estimatedCreditCost = calculateCost('meta-llama/llama-3.3-70b-instruct', inputTokens, estimatedOutputTokens);
   const userCredits = await getUserCredits(userId);
   
   if (userCredits < estimatedCreditCost) {
@@ -322,7 +323,7 @@ async function handleOpenRouterNonStreaming(
     // Calculate actual costs based on response
     const actualInputTokens = response.usage.prompt_tokens || estimatedInputTokens;
     const actualOutputTokens = response.usage.completion_tokens || 50;
-    const actualCreditCost = calculateTokenCost('meta-llama/llama-3.3-70b-instruct', actualInputTokens, actualOutputTokens);
+    const actualCreditCost = calculateCost('meta-llama/llama-3.3-70b-instruct', actualInputTokens, actualOutputTokens);
     
     // Charge credits based on actual usage
     const chargeSuccess = await chargeForUsage('meta-llama/llama-3.3-70b-instruct', actualInputTokens, actualOutputTokens, userId);
@@ -341,7 +342,7 @@ async function handleOpenRouterNonStreaming(
       ...response,
       pricing: {
         credits_charged: actualCreditCost,
-        credits_remaining: Math.round((userCredits - actualCreditCost) * 100) / 100,
+        credits_remaining: userCredits - actualCreditCost, // Full precision, no rounding
         input_tokens: actualInputTokens,
         output_tokens: actualOutputTokens,
       },
@@ -401,7 +402,7 @@ async function handleOpenRouterStreaming(
         controller.close();
 
         // Charge credits after streaming is complete
-        const actualCreditCost = calculateTokenCost('meta-llama/llama-3.3-70b-instruct', estimatedInputTokens, totalOutputTokens);
+        const actualCreditCost = calculateCost('meta-llama/llama-3.3-70b-instruct', estimatedInputTokens, totalOutputTokens);
         await chargeForUsage('meta-llama/llama-3.3-70b-instruct', estimatedInputTokens, totalOutputTokens, userId);
         
       } catch (error) {

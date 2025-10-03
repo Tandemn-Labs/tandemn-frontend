@@ -10,7 +10,7 @@ function generateCurlExample(model) {
   
   const modelEndpoints = {
     'casperhansen/llama-3.3-70b-instruct-awq': {
-      url: `${domain}/api/v1/chat/complete`, // ✅ Now works
+      url: `${domain}/api/v1/chat/completions`, // ✅ Now works
       body: { model: 'test' }
     }
   };
@@ -21,7 +21,7 @@ function generateCurlExample(model) {
   }
   
   // Fallback - domain already declared above
-  return `curl -X POST ${domain}/api/v1/chat/complete`;
+  return `curl -X POST ${domain}/api/v1/chat/completions`;
 }
 
 function getDomain() {

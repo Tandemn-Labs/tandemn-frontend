@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { db } from '@/mock/db';
 import { chatSendSchema } from '@/lib/zod-schemas';
-import { chargeCredits, getUserCredits, calculateTokenCost } from '@/lib/credits';
+import { chargeCredits, getUserCredits } from '@/lib/credits';
+import { calculateCost } from '@/config/models';
 import { sleep } from '@/lib/utils';
 import { tandemnClient, mapModelToOpenRouter } from '@/lib/tandemn-client';
 import { openRouterClient } from '@/lib/openrouter-client';
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     // Check user credits for authenticated users (based on model pricing)
     const estimatedInputTokens = Math.ceil(conversationText.length / 4);
     const estimatedOutputTokens = Math.ceil(1024 / 4); // Assume max tokens for estimation (playground limit)
-    const estimatedCost = calculateTokenCost(model.id, estimatedInputTokens, estimatedOutputTokens);
+    const estimatedCost = calculateCost(model.id, estimatedInputTokens, estimatedOutputTokens);
     
     if (userId) {
       const userCredits = await getUserCredits(userId);
@@ -100,7 +101,9 @@ export async function POST(request: NextRequest) {
             messages: messages, // Pass full conversation history
           };
           
-          console.log('🔧 API: Trying tandemn backend with streaming for model:', model.id);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🔧 API: Trying tandemn backend with streaming for model:', model.id);
+          }
           
           const tandemnResponse = await tandemnClient.inferStreamingWithTimeout(
             tandemnRequest, 
@@ -135,7 +138,9 @@ export async function POST(request: NextRequest) {
             // Use the actual result from the real Tandemn backend
             outputTokens = Math.ceil(response.length / 4);
             backendUsed = 'tandemn';
-            console.log('🔧 API: Setting backendUsed to tandemn (real backend)');
+            if (process.env.NODE_ENV === 'development') {
+              console.log('🔧 API: Setting backendUsed to tandemn (real backend)');
+            }
             
             // Calculate tokens and cost
             const totalTokens = inputTokens + outputTokens;
@@ -219,7 +224,7 @@ export async function POST(request: NextRequest) {
               });
               
               // Charge credits based on actual token usage and model pricing
-              const actualCost = calculateTokenCost(model.id, inputTokens, outputTokens);
+              const actualCost = calculateCost(model.id, inputTokens, outputTokens);
               await chargeCredits(actualCost, `${model.name}: ${inputTokens} input + ${outputTokens} output tokens`, userId, { 
                 modelId: model.id, 
                 roomId, 
@@ -235,7 +240,7 @@ export async function POST(request: NextRequest) {
               done: true,
               backend: backendUsed
             };
-            console.log('📤 API: Sending final chunk with backend:', backendUsed);
+            // Backend info hidden from production logs
             const finalChunk = `event: chunk\ndata: ${JSON.stringify(finalChunkData)}\n\n`;
             controller.enqueue(encoder.encode(finalChunk));
             controller.close();
@@ -244,7 +249,7 @@ export async function POST(request: NextRequest) {
         } catch (tandemnError) {
           // Check if this is a user cancellation - if so, don't fallback to OpenRouter
           if (tandemnError instanceof Error && tandemnError.message === 'Request cancelled by user') {
-            console.log('🛑 API: Request cancelled by user, not falling back to OpenRouter');
+            console.log('🛑 API: Request cancelled by user');
             // Just close the stream cleanly without fallback
             const cancelledChunk = `event: chunk\ndata: ${JSON.stringify({ 
               done: true, 
@@ -256,16 +261,16 @@ export async function POST(request: NextRequest) {
             return;
           }
           
-          console.error('❌ TANDEMN BACKEND FAILED');
-          console.error('Error details:', tandemnError);
-          console.error('Model attempted:', model.id);
-          console.error('Conversation length:', messages.length, 'messages');
+          if (process.env.NODE_ENV === 'development') {
+            console.error('❌ Primary service failed');
+            console.error('Error details:', tandemnError);
+            console.error('Model attempted:', model.id);
+            console.error('Conversation length:', messages.length, 'messages');
+          }
           
-          // Fallback to OpenRouter when Tandem backend fails (but not when user cancels)
-          console.log('🔀 API: Falling back to OpenRouter due to Tandem failure');
+          // Fallback to alternative provider when primary backend fails
           try {
             const openRouterModel = mapModelToOpenRouter(model.id);
-            console.log('🔀 API: Using OpenRouter model:', openRouterModel);
             
             const openRouterRequest = {
               model: openRouterModel,
@@ -280,7 +285,7 @@ export async function POST(request: NextRequest) {
               response = openRouterResponse.choices[0].message.content || '';
               outputTokens = openRouterResponse.usage?.completion_tokens || Math.ceil(response.length / 4);
               backendUsed = 'openrouter';
-              console.log('✅ API: OpenRouter fallback successful');
+              // Fallback successful
               
               // Send the OpenRouter response as streaming chunks (simulated)
               const words = response.split(' ');
@@ -295,7 +300,7 @@ export async function POST(request: NextRequest) {
                       done: true,
                       backend: backendUsed
                     };
-                    console.log('📤 API: Sending final fallback chunk with backend:', backendUsed);
+                    // Send final chunk
                     const finalChunk = `event: chunk\ndata: ${JSON.stringify(finalChunkData)}\n\n`;
                     controller.enqueue(encoder.encode(finalChunk));
                     controller.close();
@@ -313,7 +318,7 @@ export async function POST(request: NextRequest) {
                     done: false,
                     backend: backendUsed
                   };
-                  console.log('📤 API: Sending fallback chunk with backend:', backendUsed);
+                  // Sending chunk
                   const chunk = `event: chunk\ndata: ${JSON.stringify(chunkData)}\n\n`;
                   
                   controller.enqueue(encoder.encode(chunk));
@@ -325,7 +330,7 @@ export async function POST(request: NextRequest) {
                 } catch (error) {
                   // Controller is closed - stop sending chunks
                   if (error instanceof TypeError && error.message.includes('Controller is already closed')) {
-                    console.log('🛑 API: OpenRouter fallback stopped - client disconnected');
+                    // Client disconnected
                     return;
                   }
                   throw error;
@@ -339,15 +344,11 @@ export async function POST(request: NextRequest) {
               throw new Error('OpenRouter returned empty response');
             }
           } catch (openRouterError) {
-            console.error('❌ API: Both Tandem and OpenRouter failed');
-            console.error('Tandem error:', tandemnError);
-            console.error('OpenRouter error:', openRouterError);
+            console.error('❌ API: Service temporarily unavailable');
             
-            // Send error through the stream
+            // Send generic error through the stream
             const errorChunk = `event: chunk\ndata: ${JSON.stringify({ 
-              error: `Both Tandem and OpenRouter backends failed. Tandem: ${tandemnError instanceof Error ? tandemnError.message : 'Unknown error'}. OpenRouter: ${openRouterError instanceof Error ? openRouterError.message : 'Unknown error'}`,
-              backends_attempted: ['tandemn', 'openrouter'],
-              tandem_endpoint: `${process.env.TANDEMN_BACKEND_URL}/v1/chat/completions`,
+              error: `Service temporarily unavailable. Please try again in a moment.`,
               done: true
             })}\n\n`;
             controller.enqueue(encoder.encode(errorChunk));

@@ -34,14 +34,14 @@ https://api.tandemn.com/v1
 
 ### 1. Chat Completions
 
-**Endpoint:** `POST /v1/chat/complete`
+**Endpoint:** `POST /v1/chat/completions`
 
 Generate text completions using AI models.
 
 #### Request
 
 ```bash
-curl -X POST https://api.tandemn.com/v1/chat/complete \
+curl -X POST https://api.tandemn.com/v1/chat/completions \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
