@@ -26,6 +26,7 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
   const navItems = [
     { href: '/chat', label: 'Playground' },
     { href: '/models', label: 'Models' },
+    { href: '/batch-inference', label: 'Batch Inference' },
     { href: '/keys', label: 'API Keys' },
     // Combined Credits & Metrics into My Account dropdown
     // { href: '/credits', label: 'Credits' },
