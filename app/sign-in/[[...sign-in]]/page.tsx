@@ -2,27 +2,32 @@ import { SignIn } from '@clerk/nextjs';
 
 export default function Page() {
   return (
-    <div className="min-h-screen flex bg-black">
-      {/* Left Side - Image */}
-      <div className="flex-1 hidden lg:flex items-center justify-center p-8">
-        <div className="max-w-2xl">
+    <div 
+      className="min-h-screen flex bg-black relative"
+      style={{
+        backgroundImage: "url('/send_tandemn_back_hetarth.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat"
+      }}
+    >
+      {/* Background overlay with more blur */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-md"></div>
+      
+      {/* Left Side - Logo (in front of background) */}
+      <div className="flex-1 hidden lg:flex items-center justify-center p-8 relative z-10">
+        <div className="max-w-4xl">
           <img 
-            src="/cute-logo-1.png" 
+            src="/cute-logo.png" 
             alt="Tandemn AI Platform" 
-            className="w-96 h-96 object-contain mx-auto mb-8 gentle-float"
+            className="w-[32rem] h-[32rem] object-contain mx-auto gentle-float drop-shadow-2xl"
           />
-          <div className="text-center text-white">
-            <h1 className="text-4xl font-bold mb-4 gradient-text">Welcome to Tandemn</h1>
-            <p className="text-xl text-gray-300">
-              The unified interface for AI models. Access the world's best AI through a single API.
-            </p>
-          </div>
         </div>
       </div>
       
-      {/* Right Side - Sign In */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-md">
+      {/* Right Side - Sign In (in front of background) */}
+      <div className="flex-1 flex items-center justify-center p-8 relative z-10">
+        <div className="w-full max-w-md bg-black/20 backdrop-blur-md rounded-2xl p-8 border border-white/10">
           <SignIn />
         </div>
       </div>

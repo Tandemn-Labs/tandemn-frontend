@@ -36,7 +36,7 @@ The Llama 3.3 70B model wasn't working because it had the wrong model ID and con
 ### 3. Updated Models Page (`app/models/page.tsx`)
 **Added API routing curl example:**
 ```bash
-curl --location 'https://tandemn-frontend-psi.vercel.app/api/v1/chat/complete' \
+curl --location 'https://tandemn-frontend-psi.vercel.app/api/v1/chat/completions' \
 --header 'Authorization: Bearer YOUR_API_KEY' \
 --header 'Content-Type: application/json' \
 --data '{
@@ -50,7 +50,7 @@ curl --location 'https://tandemn-frontend-psi.vercel.app/api/v1/chat/complete' \
 ## 🧪 Verification
 
 ### Production Test Results:
-✅ **Working via v1/chat API**: `https://tandemn-frontend-psi.vercel.app/api/v1/chat/complete`
+✅ **Working via v1/chat API**: `https://tandemn-frontend-psi.vercel.app/api/v1/chat/completions`
 ✅ **Correct model ID**: `casperhansen/llama-3.3-70b-instruct-awq`  
 ✅ **Authentication**: Works with API key `gk-mLMITDrP_3ewsnz1nmzz`
 ✅ **Response**: Returns proper Llama responses
@@ -68,12 +68,12 @@ curl --location 'https://tandemn-frontend-psi.vercel.app/api/v1/chat/complete' \
 **Llama Model Architecture:**
 - **Deployment**: Shares infrastructure with DeepSeek (same endpoint IP)
 - **Access**: Routes through API gateway rather than direct endpoint
-- **Streaming**: Currently non-streaming via v1/chat/complete
+- **Streaming**: Currently non-streaming via v1/chat/completions
 - **Authentication**: Requires API key (unlike direct endpoints)
 
 **Why Different from Others:**
 The Llama model uses API routing instead of direct endpoint access, which means:
-- Goes through `/api/v1/chat/complete` → routes to model
+- Goes through `/api/v1/chat/completions` → routes to model
 - Includes credit charging and authentication
 - More production-ready setup
 - Currently non-streaming but fully functional

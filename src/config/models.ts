@@ -18,7 +18,7 @@ export const TANDEMN_MODELS: TandemnModel[] = [
     id: "casperhansen/deepseek-r1-distill-llama-70b-awq",
     name: "DeepSeek R1 Distilled Llama 70B (AWQ)",
     provider: "Tandemn",
-    description: "DeepSeek R1 Distill Llama 70B is a distilled large language model based on Llama-3.3-70B-Instruct, using outputs from DeepSeek R1. The model combines advanced distillation techniques to achieve high performance across multiple benchmarks, including: AIME 2024 pass@1: 70., MATH-500 pass@1: 94.5, CodeForces Rating: 1633. Deployed on 3 L40S GPUs and 1 A10G GPU with layer distribution: 23 layers (L40S) + 23 layers (L40S) + 22 layers (L40S) + 12 layers (A10G) = 80 total layers.",
+    description: "DeepSeek R1 Distill Llama 70B is a distilled large language model based on Llama-3.3-70B-Instruct, using outputs from DeepSeek R1. The model combines advanced distillation techniques to achieve high performance across multiple benchmarks, including: AIME 2024 pass@1: 70., MATH-500 pass@1: 94.5, CodeForces Rating: 1633. ",
     context_length: 8192,
     input_price_per_1m: 0.026,
     output_price_per_1m: 0.104,
@@ -30,7 +30,7 @@ export const TANDEMN_MODELS: TandemnModel[] = [
     id: "Qwen/Qwen3-32B-AWQ",
     name: "Qwen3 32B (AWQ)",
     provider: "Tandemn", 
-    description: "Qwen3-32B is a dense 32.8B parameter causal language model from the Qwen3 series, optimized for both complex reasoning and efficient dialogue. It supports seamless switching between a thinking mode for tasks like math, coding, and logical inference, and a non-thinking mode for faster, general-purpose conversation. Deployed on 2 A10G GPUs and 1 L40 GPU with layer distribution: 32 layers (L40) + 16 layers (A10G) + 16 layers (A10G) = 64 total layers.",
+    description: "Qwen3-32B is a dense 32.8B parameter causal language model from the Qwen3 series, optimized for both complex reasoning and efficient dialogue. It supports seamless switching between a thinking mode for tasks like math, coding, and logical inference, and a non-thinking mode for faster, general-purpose conversation. ",
     context_length: 8192,
     input_price_per_1m: 0.018,
     output_price_per_1m: 0.072,
@@ -42,19 +42,19 @@ export const TANDEMN_MODELS: TandemnModel[] = [
     id: "btbtyler09/Devstral-Small-2507-AWQ",
     name: "Devstral Small 2507 (AWQ)",
     provider: "Tandemn",
-    description: "Devstral-Small-2507 is a 24B parameter agentic LLM fine-tuned from Mistral-Small-3.1, jointly developed by Mistral AI and All Hands AI for advanced software engineering tasks. It is optimized for codebase exploration, multi-file editing, and integration into coding agents, achieving state-of-the-art results on SWE-Bench Verified (46.8%). Deployed on 2 A10G GPUs and 1 L4 GPU with layer distribution: 13 layers (A10G) + 13 layers (A10G) + 13 layers (L4) = 39 total layers.",
+    description: "Devstral-Small-2507 is a 24B parameter agentic LLM fine-tuned from Mistral-Small-3.1, jointly developed by Mistral AI and All Hands AI for advanced software engineering tasks. It is optimized for codebase exploration, multi-file editing, and integration into coding agents, achieving state-of-the-art results on SWE-Bench Verified (46.8%). ",
     context_length: 8192,
     input_price_per_1m: 0.02,
     output_price_per_1m: 0.08,
     capabilities: ["text", "reasoning", "coding", "fast-inference", "agentic"],
-    max_tokens: 100,
+    max_tokens: 2000,
     is_available: true
   },
   {
     id: "casperhansen/llama-3.3-70b-instruct-awq",
     name: "Llama 3.3 70B Instruct (AWQ)",
     provider: "Tandemn",
-    description: "The Meta Llama 3.3 multilingual large language model (LLM) is a pretrained and instruction tuned generative model in 70B (text in/text out). The Llama 3.3 instruction tuned text only model is optimized for multilingual dialogue use cases and outperforms many of the available open source and closed chat models on common industry benchmarks. Deployed on 3 L40 GPUs with layer distribution: 27 layers (L40) + 27 layers (L40) + 26 layers (L40) = 80 total layers. Supported languages: English, German, French, Italian, Portuguese, Hindi, Spanish, and Thai.",
+    description: "The Meta Llama 3.3 multilingual large language model (LLM) is a pretrained and instruction tuned generative model in 70B (text in/text out). The Llama 3.3 instruction tuned text only model is optimized for multilingual dialogue use cases and outperforms many of the available open source and closed chat models on common industry benchmarks. ",
     context_length: 8192,
     input_price_per_1m: 0.038,
     output_price_per_1m: 0.12,
@@ -79,8 +79,8 @@ export function calculateCost(modelId: string, inputTokens: number, outputTokens
   const outputCost = (outputTokens / 1000000) * model.output_price_per_1m;
   const totalCost = inputCost + outputCost;
   
-  // Round to 4 decimal places for precision, minimum $0.0001
-  return Math.max(Math.round(totalCost * 10000) / 10000, 0.0001);
+  // Return exact cost with full precision (no rounding)
+  return totalCost;
 }
 
 export function getAllModels(): TandemnModel[] {

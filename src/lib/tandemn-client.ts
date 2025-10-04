@@ -51,7 +51,7 @@ export class TandemnClient {
   }
 
   async health(): Promise<TandemnHealthResponse> {
-    console.log('🔧 TANDEMN: Returning mock health response (health checks disabled)');
+    // Health check simulation
     
     // Always return mock health data to avoid connection errors
     // Real health will be checked during actual inference calls
@@ -100,7 +100,9 @@ export class TandemnClient {
     timeoutMs: number = 60000,
     externalSignal?: AbortSignal // Accept external abort signal
   ): Promise<TandemnInferenceResponse> {
-    console.log('🔧 TANDEMN: Calling model endpoint for streaming model:', request.model_name);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔧 TANDEMN: Calling model endpoint for streaming model:', request.model_name);
+    }
     
     // Get the specific endpoint configuration for this model
     const modelConfig = getModelEndpoint(request.model_name);
@@ -147,8 +149,8 @@ export class TandemnClient {
         ...modelConfig.requestParams
       };
 
-      console.log('🔧 TANDEMN: Sending streaming request to:', modelConfig.endpoint);
-      console.log('🔧 TANDEMN: Request payload:', JSON.stringify(apiRequest));
+      // Endpoint request initiated
+      // Request prepared
       
       const response = await fetch(modelConfig.endpoint, {
         method: 'POST',
@@ -169,10 +171,10 @@ export class TandemnClient {
       }
 
       // Handle streaming response from Tandem with real-time callbacks
-      console.log('✅ TANDEMN: Successfully connected to Tandem backend, processing stream...');
+      // Connection established, processing stream...
       
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder('utf-8');
       let completeContent = '';
       
       if (!reader) {
@@ -191,10 +193,10 @@ export class TandemnClient {
         // Set up bailout timeout after connection success
         connectionTimeout = setTimeout(() => {
           if (!hasReceivedRealContent) {
-            console.log('🔄 TANDEMN: No real content received within 12 seconds of connection, bailing out for OpenRouter');
+            // Connection timeout - switching to alternative
             controller.abort();
           }
-        }, 12000); // 12 seconds after successful connection
+        }, 7000); // 6 seconds after successful connection
         
         while (true) {
           // Check if abort was signaled
@@ -210,7 +212,7 @@ export class TandemnClient {
           // Bailout if too many empty chunks and too much time passed (after real content was received)
           if (hasReceivedRealContent && emptyChunkCount >= 8 && (Date.now() - lastContentTime) > 15000) {
             if (connectionTimeout) clearTimeout(connectionTimeout);
-            console.log('🔄 TANDEMN: Too many empty chunks after content, bailing out for fallback');
+            // Switching to alternative due to connection issues
             throw new Error('TANDEM_BAILOUT: No real content received');
           }
           
@@ -249,7 +251,9 @@ export class TandemnClient {
                 const filteredContent = content
                   .replace(/<\|eot_id\|>/g, '')
                   .replace(/<\|end\|>/g, '')
-                  .replace(/<\|endoftext\|>/g, '');
+                  .replace(/<\|endoftext\|>/g, '')
+                  .replace(/<\|im_end\|>/g, '')
+                  .replace(/<｜end▁of▁sentence｜>/g, '');
                 
                 if (filteredContent && filteredContent.trim()) {
                   lastContentTime = Date.now();
@@ -268,7 +272,10 @@ export class TandemnClient {
                 emptyChunkCount++;
               }
             } catch (parseError) {
-              console.warn('Failed to parse SSE chunk:', trimmedLine);
+              // Only log if it's not just an empty chunk or [DONE] - reduce noise
+              if (trimmedLine !== 'data: [DONE]' && trimmedLine.trim() !== '') {
+                console.warn('Failed to parse SSE chunk:', trimmedLine, 'Error:', parseError);
+              }
             }
           }
           
@@ -297,14 +304,14 @@ export class TandemnClient {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
         if (externalSignal?.aborted) {
-          console.log('🛑 TANDEMN: Request cancelled by user');
+          console.log('🛑 Request cancelled by user');
           throw new Error('Request cancelled by user');
         } else {
           console.log('⏱️ TANDEMN: Request timed out');
           throw new Error('Tandem backend request timed out');
         }
       }
-      console.error('❌ TANDEMN: Real backend failed:', error);
+      console.error('❌ Service error:', error);
       throw error;
     }
   }
@@ -352,8 +359,8 @@ export class TandemnClient {
         ...modelConfig.requestParams
       };
 
-      console.log('🔧 TANDEMN: Sending streaming request to:', modelConfig.endpoint);
-      console.log('🔧 TANDEMN: Request payload:', JSON.stringify(apiRequest));
+      // Endpoint request initiated
+      // Request prepared
       
       const response = await fetch(modelConfig.endpoint, {
         method: 'POST',
@@ -374,10 +381,10 @@ export class TandemnClient {
       }
 
       // Handle streaming response from Tandem properly
-      console.log('✅ TANDEMN: Successfully connected to Tandem backend, processing stream...');
+      // Connection established, processing stream...
       
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder('utf-8');
       let completeContent = '';
       
       if (!reader) {
@@ -396,10 +403,10 @@ export class TandemnClient {
         // Set up bailout timeout after connection success
         connectionTimeout = setTimeout(() => {
           if (!hasReceivedRealContent) {
-            console.log('🔄 TANDEMN: No real content received within 12 seconds of connection, bailing out for OpenRouter');
+            // Connection timeout - switching to alternative
             controller.abort();
           }
-        }, 10000); // 12 seconds after successful connection
+        }, 7000); // 7 seconds after successful connection
         
         while (true) {
           // Check if abort was signaled
@@ -414,7 +421,7 @@ export class TandemnClient {
           // Bailout if too many empty chunks and too much time passed (after real content was received)
           if (hasReceivedRealContent && emptyChunkCount >= 8 && (Date.now() - lastContentTime) > 15000) {
             if (connectionTimeout) clearTimeout(connectionTimeout);
-            console.log('🔄 TANDEMN: Too many empty chunks after content, bailing out for fallback');
+            // Switching to alternative due to connection issues
             throw new Error('TANDEM_BAILOUT: No real content received');
           }
           
@@ -447,7 +454,9 @@ export class TandemnClient {
                 const filteredContent = content
                   .replace(/<\|eot_id\|>/g, '')
                   .replace(/<\|end\|>/g, '')
-                  .replace(/<\|endoftext\|>/g, '');
+                  .replace(/<\|endoftext\|>/g, '')
+                  .replace(/<\|im_end\|>/g, '')
+                  .replace(/<｜end▁of▁sentence｜>/g, '');
                 
                 if (filteredContent && filteredContent.trim()) {
                   lastContentTime = Date.now();
@@ -469,7 +478,10 @@ export class TandemnClient {
                 emptyChunkCount++;
               }
             } catch (parseError) {
-              console.warn('Failed to parse SSE chunk:', trimmedLine);
+              // Only log if it's not just an empty chunk or [DONE] - reduce noise
+              if (trimmedLine !== 'data: [DONE]' && trimmedLine.trim() !== '') {
+                console.warn('Failed to parse SSE chunk:', trimmedLine, 'Error:', parseError);
+              }
             }
           }
         }
@@ -485,6 +497,8 @@ export class TandemnClient {
         .replace(/<\|eot_id\|>/g, '')
         .replace(/<\|end\|>/g, '')
         .replace(/<\|endoftext\|>/g, '')
+        .replace(/<\|im_end\|>/g, '')
+        .replace(/<｜end▁of▁sentence｜>/g, '')
         .trim();
       
       // Convert to Tandemn format
@@ -501,7 +515,7 @@ export class TandemnClient {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error('Tandem backend request timed out');
       }
-      console.error('❌ TANDEMN: Real backend failed:', error);
+      console.error('❌ Service error:', error);
       throw error;
     }
   }
