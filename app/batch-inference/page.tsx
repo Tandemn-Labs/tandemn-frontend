@@ -18,6 +18,7 @@ interface BatchTask {
   task_id: string;
   status: string;
   message?: string;
+  final_file_path?: string;
 }
 
 export default function BatchInferencePage() {
@@ -41,8 +42,10 @@ export default function BatchInferencePage() {
   const [repetitionPenalty, setRepetitionPenalty] = useState<number | undefined>(undefined);
   const [presencePenalty, setPresencePenalty] = useState<number | undefined>(undefined);
   const [stopSequences, setStopSequences] = useState<string>('');
-  const [startingId, setStartingId] = useState(0);
   const [columnName, setColumnName] = useState('prompt');
+  const [saveResultsPath, setSaveResultsPath] = useState('s3://tandemn-results/');
+  const [maxBufferSize, setMaxBufferSize] = useState(1000);
+  const [minBufferSize, setMinBufferSize] = useState(500);
   
   // Upload progress states
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -214,21 +217,21 @@ export default function BatchInferencePage() {
         name_of_column: selectedColumn,
         delimiter: ",",
         system_prompt: systemPrompt,
-        max_buffer_size: 100,
-        min_buffer_size: 50, 
-        starting_id: startingId,
-        dry_run: false, // System controlled
+        max_buffer_size: maxBufferSize,
+        min_buffer_size: minBufferSize,
+        dry_run: false,
         max_completion_tokens: maxTokens,
         temperature: temperature,
         top_p: topP,
-        top_k: topK,
-        min_p: minP,
-        min_tokens: minTokens,
-        seed: seed,
-        frequency_penalty: frequencyPenalty,
-        repetition_penalty: repetitionPenalty,
-        presence_penalty: presencePenalty,
-        stop: stopSequences ? stopSequences.split(',').map(s => s.trim()).filter(s => s) : undefined,
+        ...(topK !== undefined && { top_k: topK }),
+        ...(minP !== undefined && { min_p: minP }),
+        ...(minTokens !== undefined && { min_tokens: minTokens }),
+        ...(seed !== undefined && { seed: seed }),
+        ...(frequencyPenalty !== undefined && { frequency_penalty: frequencyPenalty }),
+        ...(repetitionPenalty !== undefined && { repetition_penalty: repetitionPenalty }),
+        ...(presencePenalty !== undefined && { presence_penalty: presencePenalty }),
+        ...(stopSequences && stopSequences.trim() && { stop: stopSequences.split(',').map(s => s.trim()).filter(s => s) }),
+        path_to_save_results: saveResultsPath,
       }),
     });
 
@@ -262,10 +265,12 @@ export default function BatchInferencePage() {
           setCurrentTask(status);
           
           if (status.status === 'completed') {
-            setResults(['Batch processing completed successfully']);
+            setResults(['Batch processing completed successfully! Your results file is ready for download.']);
+            setIsProcessing(false);
             return;
           } else if (status.status === 'failed') {
             setResults([`Batch processing failed: ${status.error || 'Unknown error'}`]);
+            setIsProcessing(false);
             return;
           }
         } else {
@@ -454,6 +459,44 @@ export default function BatchInferencePage() {
     a.download = 'batch-inference-results.txt';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadFinalResults = async () => {
+    if (!currentTask?.task_id) return;
+    
+    try {
+      const response = await fetch(`/api/batch-inference/download/${currentTask.task_id}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Download error:', errorData);
+        setResults([`Error downloading results: ${errorData.error || 'Unknown error'}`]);
+        return;
+      }
+      
+      // Get the filename from the Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'batch_results.csv';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      // Create blob and download
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Failed to download results:', error);
+      setResults([`Error downloading results: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+    }
   };
 
   return (
@@ -731,19 +774,47 @@ export default function BatchInferencePage() {
                 />
               </div>
 
-              {/* Starting ID */}
+              {/* Save Results Path */}
               <div>
-                <label className="text-sm font-medium mb-2 block">Starting ID</label>
+                <label className="text-sm font-medium mb-2 block">Results Save Path</label>
                 <Input
-                  type="number"
-                  placeholder="0"
-                  value={startingId}
-                  onChange={(e) => setStartingId(parseInt(e.target.value) || 0)}
-                  min="0"
+                  placeholder="s3://tandemn-results/my-project/"
+                  value={saveResultsPath}
+                  onChange={(e) => setSaveResultsPath(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Starting row ID for processing (useful for resuming)
+                  S3 path where the final results file will be saved
                 </p>
+              </div>
+
+              {/* Buffer Size Controls */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Max Buffer Size</label>
+                  <Input
+                    type="number"
+                    placeholder="1000"
+                    value={maxBufferSize}
+                    onChange={(e) => setMaxBufferSize(parseInt(e.target.value) || 1000)}
+                    min="1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Maximum batch size for processing
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Min Buffer Size</label>
+                  <Input
+                    type="number"
+                    placeholder="500"
+                    value={minBufferSize}
+                    onChange={(e) => setMinBufferSize(parseInt(e.target.value) || 500)}
+                    min="1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Minimum batch size for processing
+                  </p>
+                </div>
               </div>
 
               {/* Sampling Parameters Section */}
@@ -901,7 +972,7 @@ export default function BatchInferencePage() {
               {/* Process Button */}
               <Button 
                 onClick={handleProcessBatch}
-                disabled={!selectedModel || !csvFile || !selectedColumn || isProcessing}
+                disabled={!selectedModel || !csvFile || !selectedColumn || !saveResultsPath || isProcessing}
                 className="w-full"
                 size="lg"
               >
@@ -935,7 +1006,7 @@ export default function BatchInferencePage() {
             </CardHeader>
             <CardContent>
           {/* Processing Status */}
-          {(isProcessing || currentTask) && (
+          {(isProcessing || (currentTask && currentTask.status !== 'completed')) && (
                 <div className="space-y-4 mb-6">
                   <div className="flex items-center gap-3">
                     <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
@@ -988,13 +1059,42 @@ export default function BatchInferencePage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">
-                      {results.length} results generated
+                      {currentTask?.status === 'completed' ? 'Processing completed' : `${results.length} results generated`}
                     </span>
-                    <Button onClick={handleDownloadResults} variant="outline" size="sm">
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Results
-                    </Button>
+                    <div className="flex gap-2">
+                      {currentTask?.status === 'completed' && currentTask?.task_id && (
+                        <Button onClick={handleDownloadFinalResults} variant="default" size="sm">
+                          <Download className="h-4 w-4 mr-2" />
+                          Download Final Results
+                        </Button>
+                      )}
+                      <Button onClick={handleDownloadResults} variant="outline" size="sm">
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Log
+                      </Button>
+                    </div>
                   </div>
+                  
+                  {currentTask?.status === 'completed' && (
+                    <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200 shadow-sm">
+                      <div className="flex-shrink-0">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-green-800">
+                          Batch processing completed successfully!
+                        </p>
+                        <p className="text-xs text-green-700 mt-1">
+                          Your final results file has been generated and is ready for download.
+                        </p>
+                        {currentTask.task_id && (
+                          <p className="text-xs text-green-600 mt-1 font-mono">
+                            Task ID: {currentTask.task_id}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="bg-muted/50 rounded-lg p-4 max-h-[400px] overflow-y-auto">
                     <pre className="text-sm whitespace-pre-wrap">

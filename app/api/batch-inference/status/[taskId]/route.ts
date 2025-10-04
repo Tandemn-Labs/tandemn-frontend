@@ -4,10 +4,10 @@ const BATCH_INFERENCE_BASE_URL = 'http://98.80.0.197:8000';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
-    const { taskId } = params;
+    const { taskId } = await params;
 
     if (!taskId) {
       return NextResponse.json(
@@ -19,7 +19,7 @@ export async function GET(
     console.log('Checking task status for:', taskId);
 
     // Forward the request to the batch inference server
-    const response = await fetch(`${BATCH_INFERENCE_BASE_URL}/task_status/${taskId}`, {
+    const response = await fetch(`${BATCH_INFERENCE_BASE_URL}/batch_task_status/${taskId}`, {
       method: 'GET',
     });
 
@@ -43,7 +43,7 @@ export async function GET(
     }
 
     const result = await response.json();
-    console.log('Task status retrieved:', { taskId, status: result.status });
+    console.log('Task status retrieved:', { taskId, status: result.status, fullResponse: result });
 
     return NextResponse.json(result);
 
