@@ -19,6 +19,16 @@ interface BatchTask {
   status: string;
   message?: string;
   final_file_path?: string;
+  progress?: {
+    lines_processed: number;
+    batches_sent: number;
+    current_buffer_size: number;
+  };
+  performance?: {
+    elapsed_seconds: number;
+    lines_per_second: number;
+  };
+  started_at?: number;
 }
 
 export default function BatchInferencePage() {
@@ -31,6 +41,7 @@ export default function BatchInferencePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [deployedModels, setDeployedModels] = useState<DeployedModel[]>([]);
   const [currentTask, setCurrentTask] = useState<BatchTask | null>(null);
+  const [totalLines, setTotalLines] = useState<number | null>(null);
   const [maxTokens, setMaxTokens] = useState(100);
   const [temperature, setTemperature] = useState(0.7);
   const [topP, setTopP] = useState(0.9);
@@ -262,6 +273,7 @@ export default function BatchInferencePage() {
         const response = await fetch(`/api/batch-inference/status/${taskId}`);
         if (response.ok) {
           const status = await response.json();
+          console.log('Updated task status:', status);
           setCurrentTask(status);
           
           if (status.status === 'completed') {
@@ -438,6 +450,22 @@ export default function BatchInferencePage() {
       }
       
       setCsvPreviewData(previewData);
+      
+      // Estimate total lines for progress tracking
+      // For large files, we can't get exact count, so we'll estimate based on file size
+      if (file.size > maxPreviewSize) {
+        // Rough estimation: assume average line is ~100 characters
+        const estimatedLines = Math.max(200, Math.floor(file.size / 100));
+        setTotalLines(estimatedLines);
+        console.log(`Large file detected. Estimated total lines: ${estimatedLines}`);
+      } else {
+        // For smaller files, we can get a more accurate count
+        const fullText = await file.text();
+        const lineCount = fullText.split(/\r?\n/).filter(line => line.trim()).length;
+        setTotalLines(lineCount);
+        console.log(`Total lines in CSV: ${lineCount}`);
+      }
+      
       setShowConfigForm(true);
     } catch (error) {
       console.error('Error reading CSV file:', error);
@@ -464,13 +492,27 @@ export default function BatchInferencePage() {
   const handleDownloadFinalResults = async () => {
     if (!currentTask?.task_id) return;
     
+    // Show loading state
+    setResults(['Preparing download... This may take a moment while we wait for the file to be uploaded.']);
+    
     try {
       const response = await fetch(`/api/batch-inference/download/${currentTask.task_id}`);
       
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Download error:', errorData);
-        setResults([`Error downloading results: ${errorData.error || 'Unknown error'}`]);
+        
+        // Provide more helpful error messages
+        let errorMessage = 'Error downloading results: ';
+        if (errorData.error?.includes('after multiple attempts')) {
+          errorMessage += 'The file is taking longer than expected to upload. Please try again in a few moments.';
+        } else if (errorData.error?.includes('No results found')) {
+          errorMessage += 'The results file was not found. This may be a temporary issue - please try again.';
+        } else {
+          errorMessage += errorData.error || 'Unknown error';
+        }
+        
+        setResults([errorMessage]);
         return;
       }
       
@@ -492,6 +534,9 @@ export default function BatchInferencePage() {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
+      
+      // Show success message
+      setResults([`Successfully downloaded: ${filename}`]);
       
     } catch (error) {
       console.error('Failed to download results:', error);
@@ -540,9 +585,9 @@ export default function BatchInferencePage() {
                 </span>
               </div>
               {isLoadingPreview && (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-md">
-                  <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
-                  <span className="text-sm text-blue-700">
+                <div className="flex items-center gap-2 p-3 bg-accent/10 rounded-md border border-accent/20">
+                  <Loader2 className="h-4 w-4 text-accent animate-spin" />
+                  <span className="text-sm text-accent">
                     Processing CSV file...
                   </span>
                 </div>
@@ -550,9 +595,9 @@ export default function BatchInferencePage() {
               
               {previewError && (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 p-3 bg-red-50 rounded-md">
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                    <span className="text-sm text-red-700">
+                  <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-md border border-destructive/20">
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                    <span className="text-sm text-destructive">
                       {previewError}
                     </span>
                   </div>
@@ -588,9 +633,9 @@ export default function BatchInferencePage() {
               )}
               
               {csvFile && !isLoadingPreview && !previewError && (
-                <div className="flex items-center gap-2 p-3 bg-green-50 rounded-md">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-green-700">
+                <div className="flex items-center gap-2 p-3 bg-accent/10 rounded-md border border-accent/20">
+                  <CheckCircle className="h-4 w-4 text-accent" />
+                  <span className="text-sm text-accent">
                     File uploaded: {csvFile.name} ({(csvFile.size / 1024 / 1024).toFixed(2)} MB)
                   </span>
                 </div>
@@ -707,13 +752,13 @@ export default function BatchInferencePage() {
             <CardContent className="space-y-6">
               {/* Manual Column Input for Large Files */}
               {csvPreviewData.length === 0 && (
-                <div className="p-4 bg-yellow-50 rounded-md border border-yellow-200">
+                <div className="p-4 bg-primary/10 rounded-md border border-primary/20">
                   <div className="flex items-start gap-2">
-                    <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                    <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
                     <div className="space-y-3">
                       <div>
-                        <p className="text-sm font-medium text-yellow-800">Large File Detected</p>
-                        <p className="text-sm text-yellow-700">
+                        <p className="text-sm font-medium text-primary">Large File Detected</p>
+                        <p className="text-sm text-primary/80">
                           Preview is not available for this large file. Please manually enter the column name containing your input text.
                         </p>
                       </div>
@@ -756,7 +801,7 @@ export default function BatchInferencePage() {
                       value={selectedModel}
                       onChange={(e) => setSelectedModel(e.target.value)}
                     />
-                    <p className="text-sm text-blue-600">
+                    <p className="text-sm text-accent">
                       <AlertCircle className="h-4 w-4 inline mr-1" />
                       Enter the exact model name as deployed on your backend server.
                     </p>
@@ -1007,14 +1052,17 @@ export default function BatchInferencePage() {
             <CardContent>
           {/* Processing Status */}
           {(isProcessing || (currentTask && currentTask.status !== 'completed')) && (
-                <div className="space-y-4 mb-6">
+                <div className="space-y-6 mb-6">
+                  {/* Main Status */}
                   <div className="flex items-center gap-3">
-                    <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                    <Loader2 className="h-5 w-5 animate-spin text-accent" />
                     <div className="flex-1">
                       <p className="font-medium">
                         {currentTask ? 
                           `${currentTask.status === 'uploading' ? 'Uploading File to S3' : 
                             currentTask.status === 'starting' ? 'Starting Batch Processing' : 
+                            currentTask.status === 'queued' ? 'Task Queued' :
+                            currentTask.status === 'processing' ? 'Processing Batch' :
                             `Task Status: ${currentTask.status}`}` : 
                           isUploading ? 'Uploading File to S3...' : 'Processing batch inference...'}
                       </p>
@@ -1025,17 +1073,17 @@ export default function BatchInferencePage() {
                         }
                       </p>
                       {currentTask?.task_id && currentTask.task_id !== '' && (
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-muted-foreground mt-1 font-mono">
                           Task ID: {currentTask.task_id}
                         </p>
                       )}
                     </div>
                     {uploadComplete && !currentTask && (
-                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <CheckCircle className="h-5 w-5 text-accent" />
                     )}
                   </div>
                   
-                  {/* Progress Bar - only show during upload */}
+                  {/* Upload Progress Bar */}
                   {isUploading && (
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
@@ -1043,12 +1091,87 @@ export default function BatchInferencePage() {
                         <span>{uploadProgress}%</span>
                       </div>
                       <Progress value={uploadProgress} className="w-full" />
+                      {csvFile && (
+                        <div className="text-xs text-muted-foreground">
+                          File: {csvFile.name} ({(csvFile.size / 1024 / 1024).toFixed(2)} MB)
+                        </div>
+                      )}
                     </div>
                   )}
-                  
-                  {csvFile && isUploading && (
-                    <div className="text-xs text-muted-foreground">
-                      File: {csvFile.name} ({(csvFile.size / 1024 / 1024).toFixed(2)} MB)
+
+                  {/* Batch Processing Progress */}
+                  {currentTask && currentTask.status === 'processing' && currentTask.progress && (
+                    <div className="space-y-4">
+                      {/* Progress Bar */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Processing Progress</span>
+                          <span>
+                            {currentTask.progress.lines_processed} / {totalLines || '?'} lines
+                            {totalLines && (
+                              <span className="text-muted-foreground ml-2">
+                                ({Math.round((currentTask.progress.lines_processed / totalLines) * 100)}%)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <Progress 
+                          value={totalLines ? (currentTask.progress.lines_processed / totalLines) * 100 : 0} 
+                          className="w-full" 
+                        />
+                      </div>
+
+                      {/* Performance Metrics */}
+                      {currentTask.performance && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-accent">
+                              {currentTask.performance.lines_per_second.toFixed(1)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Lines/sec</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-primary">
+                              {Math.floor(currentTask.performance.elapsed_seconds / 60)}:{(currentTask.performance.elapsed_seconds % 60).toFixed(0).padStart(2, '0')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Elapsed</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-accent/80">
+                              {currentTask.progress.batches_sent}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Batches</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-primary/80">
+                              {currentTask.progress.current_buffer_size}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Buffer</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ETA Estimation */}
+                      {currentTask.performance && totalLines && currentTask.performance.lines_per_second > 0 && (
+                        <div className="text-center p-3 bg-accent/10 rounded-lg border border-accent/20 backdrop-blur-sm">
+                          <div className="text-sm text-accent">
+                            <strong>Estimated Time Remaining:</strong> {
+                              Math.floor((totalLines - currentTask.progress.lines_processed) / currentTask.performance.lines_per_second / 60)
+                            }m {
+                              Math.floor(((totalLines - currentTask.progress.lines_processed) / currentTask.performance.lines_per_second) % 60)
+                            }s
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Queued Status */}
+                  {currentTask && currentTask.status === 'queued' && (
+                    <div className="text-center p-4 bg-primary/10 rounded-lg border border-primary/20 backdrop-blur-sm">
+                      <div className="text-sm text-primary">
+                        <strong>Task Queued</strong> - Your batch processing task is waiting in the queue
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1076,23 +1199,55 @@ export default function BatchInferencePage() {
                   </div>
                   
                   {currentTask?.status === 'completed' && (
-                    <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200 shadow-sm">
-                      <div className="flex-shrink-0">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-green-800">
-                          Batch processing completed successfully!
-                        </p>
-                        <p className="text-xs text-green-700 mt-1">
-                          Your final results file has been generated and is ready for download.
-                        </p>
-                        {currentTask.task_id && (
-                          <p className="text-xs text-green-600 mt-1 font-mono">
-                            Task ID: {currentTask.task_id}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-accent/10 to-primary/10 rounded-lg border border-accent/20 shadow-sm backdrop-blur-sm">
+                        <div className="flex-shrink-0">
+                          <CheckCircle className="h-5 w-5 text-accent" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-accent">
+                            Batch processing completed successfully!
                           </p>
-                        )}
+                          <p className="text-xs text-accent/80 mt-1">
+                            Your final results file has been generated and is ready for download.
+                          </p>
+                          {currentTask.task_id && (
+                            <p className="text-xs text-accent/60 mt-1 font-mono">
+                              Task ID: {currentTask.task_id}
+                            </p>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Final Performance Summary */}
+                      {currentTask.progress && currentTask.performance && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
+                          <div className="text-center">
+                            <div className="text-xl font-bold text-accent">
+                              {currentTask.progress.lines_processed}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Total Lines</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xl font-bold text-primary">
+                              {currentTask.performance.lines_per_second.toFixed(1)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Avg Lines/sec</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xl font-bold text-accent/80">
+                              {Math.floor(currentTask.performance.elapsed_seconds / 60)}:{(currentTask.performance.elapsed_seconds % 60).toFixed(0).padStart(2, '0')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Total Time</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-xl font-bold text-primary/80">
+                              {currentTask.progress.batches_sent}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Batches</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   
