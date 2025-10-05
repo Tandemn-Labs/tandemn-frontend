@@ -48,3 +48,5 @@ Thumbs.db
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
+# clerk configuration (can include secrets)
+/.clerk/
