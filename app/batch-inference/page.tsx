@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Upload, Download, Play, FileText, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { SignInPrompt } from '@/components/sign-in-prompt';
 
 interface DeployedModel {
   model_name: string;
@@ -32,6 +34,7 @@ interface BatchTask {
 }
 
 export default function BatchInferencePage() {
+  const { isSignedIn, isLoaded } = useUser();
   const [selectedModel, setSelectedModel] = useState('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvPreviewData, setCsvPreviewData] = useState<string[][]>([]);
@@ -67,6 +70,16 @@ export default function BatchInferencePage() {
   const [showConfigForm, setShowConfigForm] = useState(false);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+
+  // Show loading state while checking authentication
+  if (!isLoaded) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+  }
+
+  // Show sign-in prompt for unauthenticated users
+  if (!isSignedIn) {
+    return <SignInPrompt pageType="batch-inference" />;
+  }
 
   // Fetch deployed models on component mount
   useEffect(() => {
