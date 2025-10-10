@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs';
@@ -21,6 +21,11 @@ interface TopbarProps {
 export function Topbar({ onSearchFocus }: TopbarProps) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const navItems = [
     { href: '/chat', label: 'Playground' },
@@ -47,19 +52,22 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-6">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`px-3 py-2 text-sm font-medium transition-colors ${
-                    pathname === item.href
-                      ? 'text-foreground'
-                      : 'text-muted-foreground hover:text-accent'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {navItems.map((item) => {
+                const isActive = isMounted && pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`px-3 py-2 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'text-accent'
+                        : 'text-muted-foreground hover:text-accent'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
               
               {/* My Account Dropdown */}
             <SignedIn>
@@ -147,20 +155,23 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
           <div className="relative bg-background border-b shadow-lg">
             {/* Mobile Navigation */}
             <nav className="px-4 pt-8 pb-4 space-y-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                    pathname === item.href
-                      ? 'text-foreground'
-                      : 'text-muted-foreground hover:text-accent'
-                  }`}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {navItems.map((item) => {
+                const isActive = isMounted && pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'text-accent'
+                        : 'text-muted-foreground hover:text-accent'
+                    }`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
               
               {/* Mobile My Account Section */}
               <SignedIn>
@@ -171,8 +182,8 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
                   <Link
                     href="/credits"
                     className={`flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                      pathname === '/credits'
-                        ? 'text-foreground'
+                      isMounted && pathname === '/credits'
+                        ? 'text-accent'
                         : 'text-muted-foreground hover:text-accent'
                     }`}
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -183,8 +194,8 @@ export function Topbar({ onSearchFocus }: TopbarProps) {
                   <Link
                     href="/metrics"
                     className={`flex items-center px-4 py-3 text-sm font-medium transition-colors ${
-                      pathname === '/metrics'
-                        ? 'text-foreground'
+                      isMounted && pathname === '/metrics'
+                        ? 'text-accent'
                         : 'text-muted-foreground hover:text-accent'
                     }`}
                     onClick={() => setIsMobileMenuOpen(false)}

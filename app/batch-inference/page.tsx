@@ -71,21 +71,6 @@ export default function BatchInferencePage() {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  // Show loading state while checking authentication
-  if (!isLoaded) {
-    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
-  }
-
-  // Show sign-in prompt for unauthenticated users
-  if (!isSignedIn) {
-    return <SignInPrompt pageType="batch-inference" />;
-  }
-
-  // Fetch deployed models on component mount
-  useEffect(() => {
-    fetchDeployedModels();
-  }, []);
-
   const fetchDeployedModels = async () => {
     try {
       const response = await fetch('/api/v1/models');
@@ -110,6 +95,21 @@ export default function BatchInferencePage() {
       setDeployedModels([]);
     }
   };
+
+  // Fetch deployed models on component mount
+  useEffect(() => {
+    fetchDeployedModels();
+  }, []);
+
+  // Show loading state while checking authentication
+  if (!isLoaded) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+  }
+
+  // Show sign-in prompt for unauthenticated users
+  if (!isSignedIn) {
+    return <SignInPrompt pageType="batch-inference" />;
+  }
 
   const handleProcessBatch = async () => {
     if (!selectedModel || !csvFile) return;
