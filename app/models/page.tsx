@@ -208,7 +208,7 @@ console.log(data);`;
     <div className="container max-w-7xl mx-auto py-8 px-4">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Models</h1>
-        <p className="text-white dark:text-white">
+        <p className="text-muted-foreground">
           Choose from our available models and get started with API integration
         </p>
       </div>
@@ -222,7 +222,7 @@ console.log(data);`;
                 <Brain className="h-5 w-5" />
                 Available Models
               </CardTitle>
-              <CardDescription className="text-white">
+              <CardDescription>
                 Select a model to view details and integration examples
               </CardDescription>
             </CardHeader>
@@ -232,8 +232,8 @@ console.log(data);`;
                   key={model.id}
                   className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
                     selectedModel?.id === model.id
-                      ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/50'
-                      : 'border-border hover:border-blue-300'
+                      ? 'border-[#00f0ff] bg-[#00f0ff]/10 shadow-[0_0_15px_rgba(0,240,255,0.3)]'
+                      : 'border-border hover:border-[#00f0ff]/50'
                   }`}
                   onClick={() => setSelectedModel(model)}
                 >
@@ -244,14 +244,14 @@ console.log(data);`;
                         {model.provider}
                       </Badge>
                     </div>
-                    <p className="text-xs text-white dark:text-white line-clamp-2">
+                    <p className="text-xs text-muted-foreground line-clamp-2">
                       {model.description}
                     </p>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-white">
+                      <span className="text-muted-foreground">
                         {formatNumber(model.context_length)} context
                       </span>
-                      <span className="text-white">
+                      <span className="text-muted-foreground">
                         {formatPrice(model.input_price_per_1m)}/1M tokens
                       </span>
                     </div>
@@ -282,7 +282,7 @@ console.log(data);`;
                         <Zap className="h-5 w-5" />
                         {selectedModel.name}
                       </CardTitle>
-                      <CardDescription className="text-white dark:text-white">{selectedModel.description}</CardDescription>
+                      <CardDescription>{selectedModel.description}</CardDescription>
                     </div>
                     <Badge variant="secondary">{selectedModel.provider}</Badge>
                   </div>
@@ -291,27 +291,27 @@ console.log(data);`;
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="space-y-1">
                       <p className="text-sm font-medium">Context Length</p>
-                      <p className="text-2xl font-bold text-blue-600">
+                      <p className="text-2xl font-bold text-[#00f0ff] drop-shadow-[0_0_8px_rgba(0,240,255,0.5)]">
                         {formatNumber(selectedModel.context_length)}
                       </p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm font-medium">Input Price</p>
-                      <p className="text-2xl font-bold text-green-600">
+                      <p className="text-2xl font-bold text-[#00f0ff] drop-shadow-[0_0_8px_rgba(0,240,255,0.5)]">
                         {formatPrice(selectedModel.input_price_per_1m)}
                       </p>
-                      <p className="text-xs text-white">per 1M tokens</p>
+                      <p className="text-xs text-muted-foreground">per 1M tokens</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm font-medium">Output Price</p>
-                      <p className="text-2xl font-bold text-green-600">
+                      <p className="text-2xl font-bold text-[#00f0ff] drop-shadow-[0_0_8px_rgba(0,240,255,0.5)]">
                         {formatPrice(selectedModel.output_price_per_1m)}
                       </p>
-                      <p className="text-xs text-white">per 1M tokens</p>
+                      <p className="text-xs text-muted-foreground">per 1M tokens</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm font-medium">Max Tokens</p>
-                      <p className="text-2xl font-bold text-purple-600">
+                      <p className="text-2xl font-bold text-[#00f0ff] drop-shadow-[0_0_8px_rgba(0,240,255,0.5)]">
                         {formatNumber(selectedModel.max_tokens)}
                       </p>
                     </div>
@@ -323,7 +323,7 @@ console.log(data);`;
                       <Link href={`/chat?model=${selectedModel.id}`}>
                         <Button 
                           size="sm" 
-                          className="bg-green-500 hover:bg-green-600 text-white shadow-lg shadow-green-500/25 ring-2 ring-green-500/20 hover:ring-green-500/30 transition-all duration-300"
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 ring-2 ring-primary/20 hover:ring-primary/30 transition-all duration-300"
                         >
                           <MessageSquare className="h-4 w-4 mr-2" />
                           Try in Playground
@@ -419,7 +419,7 @@ console.log(data);`;
                         <Zap className="h-4 w-4" />
                         <div>
                           <p className="font-medium text-sm">Credits & Billing</p>
-                          <p className="text-xs text-white">Manage your usage and billing</p>
+                          <p className="text-xs text-muted-foreground">Manage your usage and billing</p>
                         </div>
                         <ExternalLink className="h-4 w-4 ml-auto" />
                       </Link>
@@ -431,7 +431,7 @@ console.log(data);`;
           ) : (
             <Card>
               <CardContent className="flex items-center justify-center h-64">
-                <p className="text-white">Select a model to view details</p>
+                <p className="text-muted-foreground">Select a model to view details</p>
               </CardContent>
             </Card>
           )}
