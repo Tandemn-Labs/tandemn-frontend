@@ -511,18 +511,34 @@ export default function BatchInferencePage() {
     try {
       const response = await fetch(`/api/batch-inference/download/${currentTask.task_id}`);
       
+      if (response.status === 202) {
+        // 202 means file is still being uploaded
+        const data = await response.json();
+        setResults([
+          'Processing complete! 🎉',
+          '',
+          'The results file is currently being uploaded to S3.',
+          'This usually takes a few moments.',
+          '',
+          'Please try downloading again in 10-30 seconds.',
+        ]);
+        return;
+      }
+      
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Download error:', errorData);
         
         // Provide more helpful error messages
         let errorMessage = 'Error downloading results: ';
-        if (errorData.error?.includes('after multiple attempts')) {
+        if (errorData.status === 'uploading' || errorData.error?.includes('being uploaded')) {
+          errorMessage = 'Processing complete! The results file is currently being uploaded to S3. Please try again in a few moments.';
+        } else if (errorData.error?.includes('after multiple attempts')) {
           errorMessage += 'The file is taking longer than expected to upload. Please try again in a few moments.';
-        } else if (errorData.error?.includes('No results found')) {
+        } else if (errorData.error?.includes('No results found') || errorData.error?.includes('No output file')) {
           errorMessage += 'The results file was not found. This may be a temporary issue - please try again.';
         } else {
-          errorMessage += errorData.error || 'Unknown error';
+          errorMessage += errorData.message || errorData.error || 'Unknown error';
         }
         
         setResults([errorMessage]);
