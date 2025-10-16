@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { Webhook } from 'svix';
 import { giveWelcomeCredits } from '@/lib/credits';
+import { getUserAccount } from '@/lib/user-account-service';
 
 const webhookSecret: string = process.env.CLERK_WEBHOOK_SECRET || '';
 
@@ -42,10 +43,15 @@ export async function POST(request: NextRequest) {
     if ((evt as any).type === 'user.created') {
       const { id: userId } = (evt as any).data;
       
-      // Give welcome credits to new user
-      await giveWelcomeCredits(userId);
+      // Create user account in MongoDB (this will also give welcome credits)
+      const account = await getUserAccount(userId);
       
-      console.log(`$20 welcome credits given to new user: ${userId}`);
+      if (account) {
+        console.log(`✅ User account created in MongoDB for: ${userId}`);
+        console.log(`$20 welcome credits given to new user: ${userId}`);
+      } else {
+        console.error(`❌ Failed to create user account for: ${userId}`);
+      }
     }
 
     return NextResponse.json({ received: true });

@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Upload, Download, Play, FileText, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { SignInPrompt } from '@/components/sign-in-prompt';
 
 interface DeployedModel {
   model_name: string;
@@ -32,6 +34,7 @@ interface BatchTask {
 }
 
 export default function BatchInferencePage() {
+  const { isSignedIn, isLoaded } = useUser();
   const [selectedModel, setSelectedModel] = useState('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvPreviewData, setCsvPreviewData] = useState<string[][]>([]);
@@ -68,11 +71,6 @@ export default function BatchInferencePage() {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  // Fetch deployed models on component mount
-  useEffect(() => {
-    fetchDeployedModels();
-  }, []);
-
   const fetchDeployedModels = async () => {
     try {
       const response = await fetch('/api/v1/models');
@@ -97,6 +95,21 @@ export default function BatchInferencePage() {
       setDeployedModels([]);
     }
   };
+
+  // Fetch deployed models on component mount
+  useEffect(() => {
+    fetchDeployedModels();
+  }, []);
+
+  // Show loading state while checking authentication
+  if (!isLoaded) {
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+  }
+
+  // Show sign-in prompt for unauthenticated users
+  if (!isSignedIn) {
+    return <SignInPrompt pageType="batch-inference" />;
+  }
 
   const handleProcessBatch = async () => {
     if (!selectedModel || !csvFile) return;
@@ -498,18 +511,34 @@ export default function BatchInferencePage() {
     try {
       const response = await fetch(`/api/batch-inference/download/${currentTask.task_id}`);
       
+      if (response.status === 202) {
+        // 202 means file is still being uploaded
+        const data = await response.json();
+        setResults([
+          'Processing complete! 🎉',
+          '',
+          'The results file is currently being uploaded to S3.',
+          'This usually takes a few moments.',
+          '',
+          'Please try downloading again in 10-30 seconds.',
+        ]);
+        return;
+      }
+      
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Download error:', errorData);
         
         // Provide more helpful error messages
         let errorMessage = 'Error downloading results: ';
-        if (errorData.error?.includes('after multiple attempts')) {
+        if (errorData.status === 'uploading' || errorData.error?.includes('being uploaded')) {
+          errorMessage = 'Processing complete! The results file is currently being uploaded to S3. Please try again in a few moments.';
+        } else if (errorData.error?.includes('after multiple attempts')) {
           errorMessage += 'The file is taking longer than expected to upload. Please try again in a few moments.';
-        } else if (errorData.error?.includes('No results found')) {
+        } else if (errorData.error?.includes('No results found') || errorData.error?.includes('No output file')) {
           errorMessage += 'The results file was not found. This may be a temporary issue - please try again.';
         } else {
-          errorMessage += errorData.error || 'Unknown error';
+          errorMessage += errorData.message || errorData.error || 'Unknown error';
         }
         
         setResults([errorMessage]);

@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Eye, EyeOff, Copy, Key, Plus } from 'lucide-react';
 import { useUser } from '@clerk/nextjs';
+import { SignInPrompt } from '@/components/sign-in-prompt';
 
 interface APIKey {
   id: string;
@@ -126,19 +126,7 @@ export default function APIKeysPage() {
   }
 
   if (!isSignedIn) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-center">
-          <p className="mb-4">Please sign in to manage API keys.</p>
-          <Link 
-            href="/sign-in" 
-            className="inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
-          >
-            Sign In
-          </Link>
-        </div>
-      </div>
-    );
+    return <SignInPrompt pageType="api-keys" />;
   }
 
   return (

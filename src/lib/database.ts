@@ -15,6 +15,7 @@ if (!cached) {
 
 async function dbConnect() {
   if (cached.conn) {
+    console.log('📊 Using cached MongoDB connection');
     return cached.conn;
   }
 
@@ -23,13 +24,20 @@ async function dbConnect() {
       bufferCommands: false,
     };
 
+    console.log('📊 Connecting to MongoDB...');
+    console.log('  URI preview:', MONGODB_URI.substring(0, 50) + '...');
+    console.log('  Database:', MONGODB_URI.match(/mongodb.net\/([^?]+)/)?.[1]);
+    
     cached.promise = mongoose.connect(MONGODB_URI, opts);
   }
 
   try {
     cached.conn = await cached.promise;
+    console.log('✅ MongoDB connected successfully');
+    console.log('  Database name:', cached.conn.connection.db.databaseName);
   } catch (e) {
     cached.promise = null;
+    console.error('❌ MongoDB connection failed:', e);
     throw e;
   }
 
