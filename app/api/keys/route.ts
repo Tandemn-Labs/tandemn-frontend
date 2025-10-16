@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { generateAPIKey, getUserAPIKeys, deleteAPIKey } from '@/lib/credits';
+import { generateAPIKey, getUserAPIKeys, deactivateAPIKey } from '@/lib/credits';
 
 export async function POST(request: NextRequest) {
   try {
@@ -80,7 +80,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const success = await deleteAPIKey(keyId, userId);
+    const success = await deactivateAPIKey(userId, keyId);
     
     if (success) {
       return NextResponse.json({ success: true, message: 'API key deleted' });
