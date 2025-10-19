@@ -64,7 +64,6 @@ export async function POST(request: NextRequest) {
               type: 'credit_purchase',
               amount: credits,
               description: `Stripe purchase: ${packageId}`,
-              status: 'completed',
               metadata: {
                 stripeSessionId: session.id,
                 packageId,
@@ -81,7 +80,6 @@ export async function POST(request: NextRequest) {
               type: 'credit_purchase',
               amount: credits,
               description: `Failed Stripe purchase: ${packageId}`,
-              status: 'failed',
               metadata: {
                 stripeSessionId: session.id,
                 packageId,
@@ -97,7 +95,6 @@ export async function POST(request: NextRequest) {
             type: 'credit_purchase',
             amount: credits,
             description: `Error in Stripe purchase: ${packageId}`,
-            status: 'failed',
             metadata: {
               stripeSessionId: session.id,
               packageId,

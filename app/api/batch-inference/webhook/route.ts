@@ -144,11 +144,9 @@ export async function POST(request: NextRequest) {
 
         const failResult = await failBatchInferenceTask({
           taskId,
-          error: {
-            message: body.error_message,
-            peerId: body.peer_id,
-            stackTrace: body.stack_trace,
-          },
+          errorMessage: body.error_message,
+          errorType: body.error_type,
+          stackTrace: body.stack_trace,
         });
 
         if (!failResult.success) {

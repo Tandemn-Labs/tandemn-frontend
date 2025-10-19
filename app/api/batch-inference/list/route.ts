@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's tasks
-    const tasks = await getUserBatchInferenceTasks(userId, limit, status);
+    const tasks = await getUserBatchInferenceTasks(userId, limit);
 
     // Format response
     const formattedTasks = tasks.map((task) => ({
