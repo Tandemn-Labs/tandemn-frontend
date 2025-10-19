@@ -10,6 +10,7 @@ export {
   validateAPIKey,
   deactivateAPIKey,
   giveWelcomeCredits,
+  chargeForUsage,
   type APIKey,
   type Transaction,
 } from './user-account-service';

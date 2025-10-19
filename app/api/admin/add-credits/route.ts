@@ -28,7 +28,6 @@ export const POST = withAdmin(async (request: NextRequest) => {
       type: 'bonus_credit',
       amount,
       description: `Admin added ${amount} credits`,
-      status: 'completed',
       metadata: {
         addedByAdmin: true,
       }

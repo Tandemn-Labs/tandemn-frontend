@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { completeBatchInferenceTask } from '@/lib/services/batch-inference-service';
+import { getBatchInferenceUrl } from '@/config/batch-inference-endpoints';
 import dbConnect from '@/lib/database';
 import BatchInferenceTask from '@/lib/models/BatchInferenceTask';
 
@@ -33,12 +34,17 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔧 Cleanup: Attempting to fetch completion data for task ${taskId}...`);
 
-    // Validate required environment variable
-    const BATCH_INFERENCE_BASE_URL = process.env.BATCH_INFERENCE_BASE_URL;
-    if (!BATCH_INFERENCE_BASE_URL) {
-      console.error('❌ BATCH_INFERENCE_BASE_URL environment variable is not set');
+    // Get the batch inference URL for this task's model
+    let BATCH_INFERENCE_BASE_URL: string;
+    try {
+      BATCH_INFERENCE_BASE_URL = getBatchInferenceUrl(task.modelName);
+    } catch (error) {
+      console.error(`❌ No batch inference URL for model: ${task.modelName}`);
       return NextResponse.json(
-        { error: 'Batch inference service is not configured' },
+        { 
+          error: 'Batch inference service not configured for this model',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        },
         { status: 503 }
       );
     }
