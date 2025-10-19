@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/database';
-import mongoose from 'mongoose';
+import { withAdmin } from '@/lib/admin';
 
-export async function GET(request: NextRequest) {
+export const GET = withAdmin(async (request: NextRequest) => {
   try {
     console.log('\n🔍 MONGODB DEBUG CHECK');
     console.log('='.repeat(60));
@@ -16,6 +16,10 @@ export async function GET(request: NextRequest) {
     // Try to connect
     console.log('\n2. Connection Test:');
     const conn = await dbConnect();
+    
+    if (!conn.connection.db) {
+      throw new Error('Database connection established but db is undefined');
+    }
     
     console.log('   ✅ Connection successful');
     console.log('   Database name:', conn.connection.db.databaseName);
@@ -72,5 +76,5 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 

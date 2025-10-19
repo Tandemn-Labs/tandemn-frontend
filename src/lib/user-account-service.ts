@@ -4,7 +4,8 @@ import { cache, CacheKeys, CacheTTL } from './cache';
 import { withRateLimit, Priority } from './rate-limiter';
 import { withClerkRetry } from './retry';
 import dbConnect from './database';
-import UserAccount, { IUserAccount } from './models/UserAccount';import UserTransaction from './models/UserTransaction';
+import UserAccount, { IUserAccount } from './models/UserAccount';
+import UserTransaction from './models/UserTransaction';
 import UserAPIKey from './models/UserAPIKey';
 import { createHash, randomBytes } from 'crypto';
 

@@ -56,8 +56,17 @@ export async function GET(
       // Use the stored S3 path - proceed with normal flow below
       console.log(`📦 Using stored S3 path for task ${taskId}`);
     } else {
+      // Validate required environment variable
+      const BATCH_INFERENCE_BASE_URL = process.env.BATCH_INFERENCE_BASE_URL;
+      if (!BATCH_INFERENCE_BASE_URL) {
+        console.error('❌ BATCH_INFERENCE_BASE_URL environment variable is not set');
+        return NextResponse.json(
+          { error: 'Batch inference service is not configured' },
+          { status: 503 }
+        );
+      }
+
       // No S3 path in MongoDB - try to get it from the backend with retry logic
-      const BATCH_INFERENCE_BASE_URL = process.env.BATCH_INFERENCE_BASE_URL || 'http://98.80.0.197:8000';
       console.log(`🔍 No S3 path in MongoDB for task ${taskId}, checking backend with retry...`);
       
       // Retry logic: 3 attempts with exponential backoff (0s, 2s, 4s)

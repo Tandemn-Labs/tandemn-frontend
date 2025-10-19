@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getUserBatchInferenceTasks } from '@/lib/services/batch-inference-service';
+import { isAdmin } from '@/lib/admin';
 import dbConnect from '@/lib/database';
 import BatchInferenceTask from '@/lib/models/BatchInferenceTask';
 
@@ -37,43 +38,51 @@ export async function GET(request: NextRequest) {
         });
 
       case 'count':
-        // Count all tasks in database
-        const totalCount = await BatchInferenceTask.countDocuments({});
-        const userCount = await BatchInferenceTask.countDocuments({ clerkUserId: userId });
-        const statusCounts = await BatchInferenceTask.aggregate([
-          { $group: { _id: '$status', count: { $sum: 1 } } }
-        ]);
-        
-        return NextResponse.json({
-          success: true,
-          totalTasksInDB: totalCount,
-          userTasks: userCount,
-          byStatus: statusCounts.reduce((acc, item) => {
-            acc[item._id] = item.count;
-            return acc;
-          }, {} as Record<string, number>),
-        });
-
       case 'recent':
-        // Get 10 most recent tasks across all users (admin view)
-        const recentTasks = await BatchInferenceTask.find({})
-          .sort({ createdAt: -1 })
-          .limit(10)
-          .select('taskId status modelName clerkUserId createdAt completedAt progress.linesProcessed outputFile.s3Path');
-        
-        return NextResponse.json({
-          success: true,
-          recentTasks: recentTasks.map(task => ({
-            taskId: task.taskId,
-            status: task.status,
-            modelName: task.modelName,
-            userId: task.clerkUserId?.substring(0, 12) + '...',
-            createdAt: task.createdAt,
-            completedAt: task.completedAt,
-            hasOutputFile: !!(task.outputFile?.s3Path),
-            linesProcessed: task.progress?.linesProcessed || 0,
-          })),
-        });
+        // Admin-only: System-wide statistics
+        const adminStatus = await isAdmin(userId);
+        if (!adminStatus) {
+          return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+        }
+
+        if (action === 'count') {
+          // Count all tasks in database
+          const totalCount = await BatchInferenceTask.countDocuments({});
+          const userCount = await BatchInferenceTask.countDocuments({ clerkUserId: userId });
+          const statusCounts = await BatchInferenceTask.aggregate([
+            { $group: { _id: '$status', count: { $sum: 1 } } }
+          ]);
+          
+          return NextResponse.json({
+            success: true,
+            totalTasksInDB: totalCount,
+            userTasks: userCount,
+            byStatus: statusCounts.reduce((acc, item) => {
+              acc[item._id] = item.count;
+              return acc;
+            }, {} as Record<string, number>),
+          });
+        } else {
+          // Get 10 most recent tasks across all users (admin view)
+          const recentTasks = await BatchInferenceTask.find({})
+            .sort({ createdAt: -1 })
+            .limit(10)
+            .select('taskId status modelName clerkUserId createdAt completedAt progress.linesProcessed outputFile.s3Path');
+          
+          return NextResponse.json({
+            success: true,
+            recentTasks: recentTasks.map(task => ({
+              taskId: task.taskId,
+              status: task.status,
+              modelName: task.modelName,
+              userId: task.clerkUserId?.substring(0, 12) + '...',
+              createdAt: task.createdAt,
+              completedAt: task.completedAt,
+              hasOutputFile: !!(task.outputFile?.s3Path),
+              linesProcessed: task.progress?.linesProcessed || 0,
+            })),
+          });
+        }
 
       case 'detail':
         // Get full details of a specific task
