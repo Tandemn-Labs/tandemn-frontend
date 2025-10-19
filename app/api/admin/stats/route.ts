@@ -44,6 +44,20 @@ export const GET = withAdmin(async (request: NextRequest) => {
     // Create a map of Clerk users for quick lookup
     const clerkUserMap = new Map(clerkUsers.map(user => [user.id, user]));
 
+    // Fetch all transactions for all users in a single query to avoid N+1 problem
+    const accountIds = accounts.map(acc => acc._id.toString());
+    const allTransactions = await UserTransaction.find({ userId: { $in: accountIds } });
+
+    // Group transactions by user ID for efficient lookup
+    const transactionsByUserId = new Map<string, any[]>();
+    for (const transaction of allTransactions) {
+      const userId = transaction.userId.toString();
+      if (!transactionsByUserId.has(userId)) {
+        transactionsByUserId.set(userId, []);
+      }
+      transactionsByUserId.get(userId)!.push(transaction);
+    }
+
     const userStats: UserStats[] = [];
     let totalCredits = 0;
     let totalRevenue = 0;
@@ -53,9 +67,9 @@ export const GET = withAdmin(async (request: NextRequest) => {
       const clerkUser = clerkUserMap.get(account.clerkUserId);
       const isAdminUser = clerkUser?.publicMetadata?.role === 'admin' || clerkUser?.publicMetadata?.isAdmin === true;
       
-      // Get transactions for this user
-      const transactions = await UserTransaction.find({ userId: account._id })
-        .sort({ createdAt: -1 });
+      // Get transactions for this user from the pre-fetched map
+      const transactions = (transactionsByUserId.get(account._id.toString()) || [])
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       
       // Calculate totals from transactions
       let totalSpent = 0;

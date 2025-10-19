@@ -33,9 +33,17 @@ export async function POST(request: NextRequest) {
 
     console.log(`🔧 Cleanup: Attempting to fetch completion data for task ${taskId}...`);
 
+    // Validate required environment variable
+    const BATCH_INFERENCE_BASE_URL = process.env.BATCH_INFERENCE_BASE_URL;
+    if (!BATCH_INFERENCE_BASE_URL) {
+      console.error('❌ BATCH_INFERENCE_BASE_URL environment variable is not set');
+      return NextResponse.json(
+        { error: 'Batch inference service is not configured' },
+        { status: 503 }
+      );
+    }
+
     // Try to get completion data from backend
-    const BATCH_INFERENCE_BASE_URL = process.env.BATCH_INFERENCE_BASE_URL || 'http://98.80.0.197:8000';
-    
     try {
       // First check status
       const statusResponse = await fetch(`${BATCH_INFERENCE_BASE_URL}/batch_task_status/${taskId}`);

@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getBatchInferenceTask, updateBatchInferenceProgress } from '@/lib/services/batch-inference-service';
 
-const BATCH_INFERENCE_BASE_URL = process.env.BATCH_INFERENCE_BASE_URL || 'http://98.80.0.197:8000';
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
@@ -13,6 +11,16 @@ export async function GET(
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Validate required environment variable
+    const BATCH_INFERENCE_BASE_URL = process.env.BATCH_INFERENCE_BASE_URL;
+    if (!BATCH_INFERENCE_BASE_URL) {
+      console.error('❌ BATCH_INFERENCE_BASE_URL environment variable is not set');
+      return NextResponse.json(
+        { error: 'Batch inference service is not configured' },
+        { status: 503 }
+      );
     }
 
     const { taskId } = await params;
