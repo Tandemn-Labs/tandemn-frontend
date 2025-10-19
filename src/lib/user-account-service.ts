@@ -8,6 +8,7 @@ import UserAccount, { IUserAccount } from './models/UserAccount';
 import UserTransaction from './models/UserTransaction';
 import UserAPIKey from './models/UserAPIKey';
 import { createHash, randomBytes } from 'crypto';
+import { calculateCost } from '@/config/models';
 
 
 const clerkClient = createClerkClient({
@@ -425,5 +426,43 @@ export async function giveWelcomeCredits(userId: string): Promise<void> {
     }
   } catch (error) {
     console.error('Error giving welcome credits:', error);
+  }
+}
+
+// Charge user for API usage
+export async function chargeForUsage(
+  modelId: string,
+  inputTokens: number,
+  outputTokens: number,
+  userId: string
+): Promise<boolean> {
+  try {
+    // Calculate cost based on actual model pricing
+    const cost = calculateCost(modelId, inputTokens, outputTokens);
+    const totalTokens = inputTokens + outputTokens;
+    
+    // Deduct credits
+    const success = await deductCredits(userId, cost);
+    
+    if (success) {
+      // Add transaction record
+      await addTransaction(userId, {
+        type: 'usage_charge',
+        amount: -cost,
+        description: `API usage: ${modelId}`,
+        modelId,
+        tokens: totalTokens,
+        metadata: {
+          inputTokens,
+          outputTokens,
+          cost,
+        },
+      });
+    }
+    
+    return success;
+  } catch (error) {
+    console.error('Error charging for usage:', error);
+    return false;
   }
 }

@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getBatchInferenceTask } from '@/lib/services/batch-inference-service';
+import { getBatchInferenceUrl } from '@/config/batch-inference-endpoints';
 
 // Initialize S3 client
 const s3Client = new S3Client({
@@ -56,12 +57,17 @@ export async function GET(
       // Use the stored S3 path - proceed with normal flow below
       console.log(`📦 Using stored S3 path for task ${taskId}`);
     } else {
-      // Validate required environment variable
-      const BATCH_INFERENCE_BASE_URL = process.env.BATCH_INFERENCE_BASE_URL;
-      if (!BATCH_INFERENCE_BASE_URL) {
-        console.error('❌ BATCH_INFERENCE_BASE_URL environment variable is not set');
+      // Get the batch inference URL for this task's model
+      let BATCH_INFERENCE_BASE_URL: string;
+      try {
+        BATCH_INFERENCE_BASE_URL = getBatchInferenceUrl(task.modelName);
+      } catch (error) {
+        console.error(`❌ No batch inference URL for model: ${task.modelName}`);
         return NextResponse.json(
-          { error: 'Batch inference service is not configured' },
+          { 
+            error: 'Batch inference service not configured for this model',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          },
           { status: 503 }
         );
       }

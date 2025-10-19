@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createBatchInferenceTask } from '@/lib/services/batch-inference-service';
+import { getBatchInferenceUrl } from '@/config/batch-inference-endpoints';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,20 +15,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Validate required environment variable
-    const BATCH_INFERENCE_BASE_URL = process.env.BATCH_INFERENCE_BASE_URL;
-    if (!BATCH_INFERENCE_BASE_URL) {
-      console.error('❌ BATCH_INFERENCE_BASE_URL environment variable is not set');
-      return NextResponse.json(
-        { error: 'Batch inference service is not configured' },
-        { status: 503 }
-      );
-    }
-
     console.log('👤 User authenticated:', userId);
 
     // Get the request body
     const body = await request.json();
+    
+    // Get the batch inference URL for the specified model
+    let BATCH_INFERENCE_BASE_URL: string;
+    try {
+      BATCH_INFERENCE_BASE_URL = getBatchInferenceUrl(body.model_name);
+    } catch (error) {
+      console.error('❌ Error getting batch inference URL:', error);
+      return NextResponse.json(
+        { 
+          error: 'Batch inference not available for this model',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        },
+        { status: 400 }
+      );
+    }
     
     console.log('Proxying batch inference request:', {
       model_name: body.model_name,
