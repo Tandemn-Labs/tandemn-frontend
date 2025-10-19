@@ -11,6 +11,8 @@ export {
   deactivateAPIKey,
   giveWelcomeCredits,
   chargeForUsage,
+  chargeCredits,
+  purchaseCredits,
   type APIKey,
   type Transaction,
 } from './user-account-service';

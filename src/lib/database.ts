@@ -34,7 +34,7 @@ async function dbConnect() {
   try {
     cached.conn = await cached.promise;
     console.log('✅ MongoDB connected successfully');
-    console.log('  Database name:', cached.conn.connection.db.databaseName);
+    console.log('  Database name:', cached.conn.connection.db?.databaseName || 'unknown');
   } catch (e) {
     cached.promise = null;
     console.error('❌ MongoDB connection failed:', e);

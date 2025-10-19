@@ -1,11 +1,14 @@
 import Stripe from 'stripe';
 import { STRIPE_CREDIT_PACKAGES } from './stripe-config';
 
-// Server-side Stripe instance
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-08-27.basil',
-  typescript: true,
-});
+// Server-side Stripe instance with build-time safety
+export const stripe = new Stripe(
+  process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_for_build', 
+  {
+    apiVersion: '2025-08-27.basil',
+    typescript: true,
+  }
+);
 
 // Client-side publishable key
 export const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!;
@@ -34,6 +37,11 @@ export async function createCheckoutSession({
     description: string;
   };
 }) {
+  // Runtime check for Stripe key
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.');
+  }
+
   // Use custom package if provided, otherwise find from predefined packages
   const creditPackage = customPackage || STRIPE_CREDIT_PACKAGES.find(pkg => pkg.id === packageId);
   
@@ -74,11 +82,16 @@ export async function createCheckoutSession({
 
 // Verify Stripe webhook signature
 export function verifyStripeSignature(body: string, signature: string): Stripe.Event {
+  // Runtime check for webhook secret
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    throw new Error('Stripe webhook secret is not configured. Please set STRIPE_WEBHOOK_SECRET environment variable.');
+  }
+
   try {
     return stripe.webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (error) {
     throw new Error(`Webhook signature verification failed: ${error}`);

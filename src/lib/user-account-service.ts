@@ -466,3 +466,55 @@ export async function chargeForUsage(
     return false;
   }
 }
+
+// Charge credits for general usage with transaction logging
+export async function chargeCredits(
+  amount: number,
+  description: string,
+  userId: string,
+  metadata?: any
+): Promise<boolean> {
+  try {
+    // Load testing bypass - always succeed for test user
+    if (process.env.NODE_ENV === 'development' && userId === 'test-user-loadtest') {
+      return true; // Always successful charge for load testing
+    }
+
+    const success = await deductCredits(userId, amount);
+    
+    if (success) {
+      await addTransaction(userId, {
+        type: 'usage_charge',
+        amount: -amount,
+        description,
+        metadata,
+      });
+    }
+
+    return success;
+  } catch (error) {
+    console.error('Error charging credits:', error);
+    return false;
+  }
+}
+
+// Purchase credits (mock implementation - integrate with Stripe in production)
+export async function purchaseCredits(packageId: string, userId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    // In a real implementation, this would:
+    // 1. Create a Stripe checkout session
+    // 2. Handle webhook to add credits after successful payment
+    // For now, this is a placeholder
+    
+    return {
+      success: false,
+      message: 'Credit purchase is not yet implemented. Please contact support.',
+    };
+  } catch (error) {
+    console.error('Error purchasing credits:', error);
+    return {
+      success: false,
+      message: 'Failed to process credit purchase',
+    };
+  }
+}
