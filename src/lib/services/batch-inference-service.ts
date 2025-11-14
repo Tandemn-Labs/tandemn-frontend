@@ -1,6 +1,6 @@
 import dbConnect from '../database';
 import BatchInferenceTask, { IBatchInferenceTask } from '../models/BatchInferenceTask';
-import { getUserAccount } from '../user-account-service';
+import { getUserAccount, deductCredits, addTransaction } from '../user-account-service';
 
 export interface CreateBatchInferenceTaskParams {
   clerkUserId: string;
@@ -37,6 +37,11 @@ export interface CreateBatchInferenceTaskParams {
   pipelineInfo?: {
     peerIds: string[];
     deploymentMap?: any;
+  };
+  estimatedCostInfo?: {
+    estimatedCostUSD: number;
+    creditsCost: number;
+    pricingModel: string;
   };
   metadata?: {
     userAgent?: string;
@@ -156,6 +161,7 @@ export async function createBatchInferenceTask(
         totalBatches: 0,
       },
       pipelineInfo: params.pipelineInfo || { peerIds: [] },
+      estimatedCostInfo: params.estimatedCostInfo,
       metadata: params.metadata,
       queuedAt: new Date(),
     });
@@ -304,6 +310,43 @@ export async function completeBatchInferenceTask(
       { $set: updateData },
       { new: true }
     );
+
+    // Charge user for actual usage
+    if (params.costInfo && params.costInfo.creditsCost > 0) {
+      const creditsCost = params.costInfo.creditsCost;
+      const totalTokens = params.tokenMetrics?.totalTokens || 0;
+      
+      console.log(`💳 Charging user ${task.clerkUserId} for batch inference: $${creditsCost.toFixed(4)}`);
+      
+      // Deduct credits
+      const deductSuccess = await deductCredits(task.clerkUserId, creditsCost);
+      
+      if (deductSuccess) {
+        // Add transaction record
+        await addTransaction(task.clerkUserId, {
+          type: 'usage_charge',
+          amount: -creditsCost,
+          description: `Batch inference: ${task.modelName}`,
+          status: 'completed',
+          modelId: task.modelName,
+          tokens: totalTokens,
+          metadata: {
+            taskId: params.taskId,
+            inputTokens: params.tokenMetrics?.totalInputTokens || 0,
+            outputTokens: params.tokenMetrics?.totalOutputTokens || 0,
+            totalTokens,
+            cost: creditsCost,
+            pricingModel: params.costInfo.pricingModel,
+            estimatedCost: task.estimatedCostInfo?.creditsCost,
+          },
+        });
+        
+        console.log(`✅ Successfully charged $${creditsCost.toFixed(4)} for batch inference`);
+      } else {
+        console.error(`❌ Failed to charge user for batch inference - insufficient credits?`);
+        // Don't fail the task completion, just log the error
+      }
+    }
 
     console.log(`✅ Completed batch inference task: ${params.taskId}`);
     return { success: true, task: updatedTask, message: 'Task completed successfully' };
