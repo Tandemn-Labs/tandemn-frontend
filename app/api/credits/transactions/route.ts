@@ -3,6 +3,10 @@ import { auth } from '@clerk/nextjs/server';
 import { getTransactionHistory } from '@/lib/credits';
 import { sleep } from '@/lib/utils';
 
+// Force dynamic rendering - don't cache this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   try {
     await sleep(100);
@@ -30,10 +34,17 @@ export async function GET(request: NextRequest) {
     // Apply limit
     transactions = transactions.slice(0, limit);
     
-    return NextResponse.json({
+    const response = NextResponse.json({
       transactions,
       total: transactions.length,
     });
+    
+    // Prevent any caching
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    
+    return response;
   } catch (error) {
     console.error('Error in /api/credits/transactions:', error);
     return NextResponse.json(

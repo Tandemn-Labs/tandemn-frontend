@@ -16,7 +16,12 @@ import {
   DollarSign,
   Activity,
   CreditCard,
-  Plus
+  Plus,
+  ArrowUpRight,
+  ArrowDownRight,
+  Gift,
+  RotateCcw,
+  History
 } from 'lucide-react';
 import { type Transaction } from '@/lib/credits-client';
 
@@ -95,6 +100,17 @@ export default function CreditsPage() {
   const refreshData = async () => {
     setLoading(true);
     setTransactionsLoading(true);
+    
+    // Clear server-side cache first
+    try {
+      await fetch('/api/cache/clear', { method: 'POST' });
+    } catch (error) {
+      console.error('Failed to clear cache:', error);
+    }
+    
+    // Small delay to ensure cache is cleared
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     await Promise.all([fetchCredits(), fetchTransactions()]);
   };
 
@@ -208,6 +224,30 @@ export default function CreditsPage() {
   const avgCostPerCall = usageTransactions.length > 0 
     ? (totalSpent / usageTransactions.length).toFixed(4)
     : '0.0000';
+
+  // Helper function to get transaction icon
+  const getTransactionIcon = (transaction: Transaction) => {
+    switch (transaction.type) {
+      case 'credit_purchase':
+        return <ArrowDownRight className="h-4 w-4 text-green-600" />;
+      case 'usage_charge':
+        return <ArrowUpRight className="h-4 w-4 text-red-600" />;
+      case 'bonus_credit':
+        return <Gift className="h-4 w-4 text-blue-600" />;
+      case 'refund':
+        return <RotateCcw className="h-4 w-4 text-yellow-600" />;
+      default:
+        return <Activity className="h-4 w-4 text-gray-600" />;
+    }
+  };
+
+  // Helper function to format transaction description
+  const formatTransactionDescription = (transaction: Transaction) => {
+    if (transaction.type === 'usage_charge' && transaction.modelId) {
+      return `${transaction.description} (${transaction.modelId})`;
+    }
+    return transaction.description;
+  };
 
   return (
     <div className="container max-w-5xl mx-auto py-8 px-4">
@@ -428,6 +468,86 @@ export default function CreditsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Transaction History */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Transaction History
+          </CardTitle>
+          <CardDescription>
+            Your recent credit transactions and API usage
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {transactionsLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center space-x-3 flex-1">
+                    <div className="h-4 w-4 bg-muted animate-pulse rounded"></div>
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 w-48 bg-muted animate-pulse rounded"></div>
+                      <div className="h-3 w-32 bg-muted animate-pulse rounded"></div>
+                    </div>
+                  </div>
+                  <div className="h-4 w-16 bg-muted animate-pulse rounded"></div>
+                </div>
+              ))}
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="text-center py-12">
+              <History className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground mb-2">No transactions yet</p>
+              <p className="text-sm text-muted-foreground">
+                Start using the API or purchase credits to see your transaction history
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {transactions.slice(0, 50).map((transaction) => (
+                <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      {getTransactionIcon(transaction)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">
+                        {formatTransactionDescription(transaction)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(transaction.createdAt).toLocaleString()}
+                      </p>
+                      {transaction.metadata?.cost && (
+                        <p className="text-xs text-muted-foreground">
+                          Cost: ${transaction.metadata.cost.toFixed(4)}
+                        </p>
+                      )}
+                      {transaction.tokens && (
+                        <p className="text-xs text-muted-foreground">
+                          Tokens: {transaction.tokens.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className={`font-bold ${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {transaction.amount < 0 ? '-' : '+'}${Math.abs(transaction.amount).toFixed(2)}
+                    </div>
+                    <Badge 
+                      variant={transaction.status === 'completed' ? 'default' : transaction.status === 'pending' ? 'secondary' : 'destructive'}
+                      className="text-xs"
+                    >
+                      {transaction.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Custom Amount Modal */}
       <Dialog open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>

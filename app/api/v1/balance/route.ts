@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateAPIKey, getUserCredits, getTransactionHistory } from '@/lib/credits';
 
+// Force dynamic rendering - don't cache this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET /api/v1/balance - Get user's current credit balance
 export async function GET(request: NextRequest) {
   try {
@@ -44,7 +48,7 @@ export async function GET(request: NextRequest) {
     const monthlySpent = monthlyTransactions.reduce((total, tx) => total + Math.abs(tx.amount), 0);
     const monthlyApiCalls = monthlyTransactions.length;
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       data: {
         balance: balance, // Full precision, no rounding
         currency: 'USD',
@@ -63,6 +67,13 @@ export async function GET(request: NextRequest) {
         }))
       }
     });
+    
+    // Prevent any caching
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    
+    return response;
   } catch (error) {
     console.error('Error in /api/v1/balance:', error);
     return NextResponse.json(

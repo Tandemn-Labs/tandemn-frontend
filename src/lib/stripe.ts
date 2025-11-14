@@ -42,6 +42,12 @@ export async function createCheckoutSession({
     throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.');
   }
 
+  // Runtime check for domain
+  const domain = process.env.NEXT_PUBLIC_DOMAIN;
+  if (!domain) {
+    throw new Error('NEXT_PUBLIC_DOMAIN environment variable is not set. Required for redirect URLs.');
+  }
+
   // Use custom package if provided, otherwise find from predefined packages
   const creditPackage = customPackage || STRIPE_CREDIT_PACKAGES.find(pkg => pkg.id === packageId);
   
@@ -58,7 +64,7 @@ export async function createCheckoutSession({
           product_data: {
             name: creditPackage.name,
             description: creditPackage.description,
-            images: ['https://your-domain.com/credit-icon.png'], // Optional: Add credit icon
+            images: [`${domain}/tandemn-logo-circle.svg`],
           },
           unit_amount: creditPackage.price,
         },
@@ -66,8 +72,8 @@ export async function createCheckoutSession({
       },
     ],
     mode: 'payment', // One-time payment (not subscription)
-    success_url: `${process.env.NEXT_PUBLIC_DOMAIN}/credits?session_id={CHECKOUT_SESSION_ID}&success=true`,
-    cancel_url: `${process.env.NEXT_PUBLIC_DOMAIN}/credits?canceled=true`,
+    success_url: `${domain}/credits?session_id={CHECKOUT_SESSION_ID}&success=true`,
+    cancel_url: `${domain}/credits?canceled=true`,
     customer_email: userEmail,
     metadata: {
       userId,

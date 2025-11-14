@@ -7,8 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Upload, Download, Play, FileText, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Upload, Download, Play, FileText, Loader2, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { SignInPrompt } from '@/components/sign-in-prompt';
+import { fetchDeployments, getDeployedModelIds } from '@/lib/deployment-utils';
+import { DeploymentBadge } from '@/components/badge-components';
 
 interface DeployedModel {
   model_name: string;
@@ -70,29 +72,40 @@ export default function BatchInferencePage() {
   const [showConfigForm, setShowConfigForm] = useState(false);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  
+  // Deployment status tracking
+  const [deployedModelIds, setDeployedModelIds] = useState<Set<string>>(new Set());
+  const [isRefreshingDeployments, setIsRefreshingDeployments] = useState(false);
 
   const fetchDeployedModels = async () => {
+    setIsRefreshingDeployments(true);
     try {
-      const response = await fetch('/api/v1/models');
-      if (response.ok) {
-        const data = await response.json();
-        const models = data.data || [];
-        
-        const deployedModels = models.map((model: any) => ({
-          model_name: model.id,
-          status: model.status || 'unknown',
+      const deployments = await fetchDeployments();
+      const deployedIds = getDeployedModelIds(deployments);
+      setDeployedModelIds(deployedIds);
+      
+      // Convert to DeployedModel format for compatibility
+      const models = deployments
+        .filter(d => d.status === 'ready')
+        .map(d => ({
+          model_name: d.model_name,
+          status: d.status,
           deployment_status: 'deployed'
         }));
-        
-        setDeployedModels(deployedModels);
-        
-        if (deployedModels.length > 0 && !selectedModel) {
-          setSelectedModel(deployedModels[0].model_name);
-        }
+      
+      setDeployedModels(models);
+      
+      // Set default model to first deployed model if none selected
+      if (models.length > 0 && !selectedModel) {
+        setSelectedModel(models[0].model_name);
       }
+      
+      console.log('Deployed models:', Array.from(deployedIds));
     } catch (error) {
       console.error('Failed to fetch deployed models:', error);
       setDeployedModels([]);
+    } finally {
+      setIsRefreshingDeployments(false);
     }
   };
 
@@ -809,18 +822,53 @@ export default function BatchInferencePage() {
 
               {/* Model Selection */}
               <div>
-                <label className="text-sm font-medium mb-2 block">Model Name</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">Model Name</label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchDeployedModels}
+                    disabled={isRefreshingDeployments}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshingDeployments ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
                 {deployedModels.length > 0 ? (
-                  <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <Select 
+                    value={selectedModel} 
+                    onValueChange={(modelId) => {
+                      // Check if model is deployed before allowing selection
+                      if (!deployedModelIds.has(modelId)) {
+                        alert('⚠️ This model is not currently deployed. Please select a deployed model or refresh deployment status.');
+                        return;
+                      }
+                      setSelectedModel(modelId);
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Choose a deployed model for batch processing" />
                     </SelectTrigger>
                     <SelectContent>
-                      {deployedModels.map((model) => (
-                        <SelectItem key={model.model_name} value={model.model_name}>
-                          {model.model_name}
-                        </SelectItem>
-                      ))}
+                      {deployedModels.map((model) => {
+                        const isDeployed = deployedModelIds.has(model.model_name);
+                        return (
+                          <SelectItem 
+                            key={model.model_name} 
+                            value={model.model_name}
+                            disabled={!isDeployed}
+                            className={!isDeployed ? 'opacity-50 cursor-not-allowed' : ''}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span>{model.model_name}</span>
+                              <DeploymentBadge 
+                                status={isDeployed ? 'ready' : 'not-deployed'} 
+                                className="ml-2"
+                              />
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 ) : (
@@ -832,7 +880,7 @@ export default function BatchInferencePage() {
                     />
                     <p className="text-sm text-accent">
                       <AlertCircle className="h-4 w-4 inline mr-1" />
-                      Enter the exact model name as deployed on your backend server.
+                      No deployed models found. Enter the exact model name as deployed on your backend server or click Refresh.
                     </p>
                   </div>
                 )}

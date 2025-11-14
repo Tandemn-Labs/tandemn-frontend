@@ -2,40 +2,51 @@
 // This file can be imported by client components
 
 // Credit packages available for purchase (1 credit = 1 dollar)
+// Unified with Stripe configuration - IDs match STRIPE_CREDIT_PACKAGES
 export const CREDIT_PACKAGES = [
   {
-    id: 'credits_5',
-    name: '5 Credits',
-    credits: 5,
-    price: 5, // $5 for 5 credits
+    id: 'starter',
+    name: 'Starter Pack',
+    credits: 5.00,
+    price: 500, // Price in cents
+    currency: 'usd',
+    description: '$5 in API credits',
     popular: false,
   },
   {
-    id: 'credits_10',
-    name: '10 Credits',
-    credits: 10,
-    price: 10, // $10 for 10 credits
-    popular: false,
-  },
-  {
-    id: 'credits_25',
-    name: '25 Credits',
-    credits: 25,
-    price: 25, // $25 for 25 credits
+    id: 'basic',
+    name: 'Basic Pack',
+    credits: 10.00,
+    price: 1000, // Price in cents
+    currency: 'usd',
+    description: '$10 in API credits',
     popular: true,
   },
   {
-    id: 'credits_50',
-    name: '50 Credits',
-    credits: 50,
-    price: 50, // $50 for 50 credits
+    id: 'pro',
+    name: 'Pro Pack',
+    credits: 25.00,
+    price: 2500, // Price in cents
+    currency: 'usd',
+    description: '$25 in API credits',
     popular: false,
   },
   {
-    id: 'credits_100',
-    name: '100 Credits',
-    credits: 100,
-    price: 100, // $100 for 100 credits
+    id: 'business',
+    name: 'Business Pack',
+    credits: 50.00,
+    price: 5000, // Price in cents
+    currency: 'usd',
+    description: '$50 in API credits',
+    popular: false,
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise Pack',
+    credits: 100.00,
+    price: 10000, // Price in cents
+    currency: 'usd',
+    description: '$100 in API credits',
     popular: false,
   },
 ];
