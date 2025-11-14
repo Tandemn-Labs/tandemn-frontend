@@ -59,6 +59,8 @@ export interface Transaction {
   description: string;
   status: 'completed' | 'pending' | 'failed';
   createdAt: string;
+  modelId?: string;
+  tokens?: number;
   packageId?: string;
   metadata?: {
     modelId?: string;

@@ -301,8 +301,8 @@ export async function POST(request: NextRequest) {
                   if (currentIndex >= words.length) {
                     // Calculate costs for OpenRouter fallback
                     const totalTokens = inputTokens + outputTokens;
-                    const inputCost = (inputTokens / 1000000) * (model.input_price_per_1m || 0);
-                    const outputCost = (outputTokens / 1000000) * (model.output_price_per_1m || 0);
+                    const inputCost = (inputTokens / 1000000) * (model.promptPrice || 0);
+                    const outputCost = (outputTokens / 1000000) * (model.completionPrice || 0);
                     const totalCost = inputCost + outputCost;
                     const endTime = Date.now();
                     

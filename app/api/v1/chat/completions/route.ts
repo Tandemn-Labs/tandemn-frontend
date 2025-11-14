@@ -299,6 +299,7 @@ export async function POST(request: NextRequest) {
                 type: 'usage_charge',
                 amount: -actualCost,
                 description: `${modelInfo.name} - ${actualInputTokens + actualOutputTokens} tokens (streaming, ${backendUsed})`,
+                status: 'completed',
                 metadata: {
                   model,
                   input_tokens: actualInputTokens,
@@ -389,6 +390,7 @@ export async function POST(request: NextRequest) {
           type: 'usage_charge',
           amount: -actualCost,
           description: `${modelInfo.name} - ${totalTokens} tokens (${backendUsed})`,
+          status: 'completed',
           metadata: {
             model,
             input_tokens: actualInputTokens,
