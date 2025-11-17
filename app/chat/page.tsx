@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, Suspense, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useUser } from '@clerk/nextjs';
 import { useSearchParams } from 'next/navigation';
-import { Plus, MessageSquare, Settings, Send, Paperclip, Globe, Menu, X, Zap, ChevronDown, Check, Square, Trash2 } from 'lucide-react';
+import { Plus, MessageSquare, Settings, Send, Paperclip, Globe, Menu, X, Zap, ChevronDown, Check, Square, Trash2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,10 +27,22 @@ import {
   import { ThinkingMode } from '@/components/thinking-mode';
 import { useRoomsStore } from '@/store/rooms';
 import { ChatRoom, Message, Model } from '@/mock/types';
-import { GPUUtilization } from '@/components/gpu-utilization';
-import { BackendIndicator } from '@/components/backend-indicator';
 import { TandemnHealth } from '@/components/tandemn-health';
 import { SignInPrompt } from '@/components/sign-in-prompt';
+import { fetchDeployments, getDeployedModelIds } from '@/lib/deployment-utils';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// Dynamically import heavy components
+const GPUUtilization = dynamic(() => import('@/components/gpu-utilization').then(mod => ({ default: mod.GPUUtilization })), {
+  loading: () => (
+    <div className="space-y-4">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-32 w-full" />
+      <Skeleton className="h-32 w-full" />
+    </div>
+  ),
+  ssr: false,
+});
 
 function ChatPageContent() {
   const { user, isSignedIn } = useUser();
@@ -69,6 +82,10 @@ function ChatPageContent() {
   const [roomToDelete, setRoomToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  // Deployment status tracking
+  const [deployedModelIds, setDeployedModelIds] = useState<Set<string>>(new Set());
+  const [isRefreshingDeployments, setIsRefreshingDeployments] = useState(false);
+  
   // Thinking mode state for streaming
   const [streamingThinking, setStreamingThinking] = useState<{[messageId: string]: string}>({});
   const [streamingRegular, setStreamingRegular] = useState<{[messageId: string]: string}>({});
@@ -93,36 +110,84 @@ function ChatPageContent() {
     }
   };
 
-  // Fetch models on mount
+  // Fetch deployment status
+  const fetchDeploymentStatus = async () => {
+    setIsRefreshingDeployments(true);
+    try {
+      const deployments = await fetchDeployments();
+      const deployedIds = getDeployedModelIds(deployments);
+      setDeployedModelIds(deployedIds);
+      console.log('Deployed models:', Array.from(deployedIds));
+    } catch (error) {
+      console.error('Failed to fetch deployment status:', error);
+    } finally {
+      setIsRefreshingDeployments(false);
+    }
+  };
+
+  // Fetch models on mount - OPTIMIZED WITH PARALLEL FETCHING
   useEffect(() => {
-    const fetchModels = async () => {
+    const fetchInitialData = async () => {
       try {
-        const response = await fetch('/api/models?limit=50&sort=popularity');
-        const data = await response.json();
-        setModels(data.items || []);
-        if (data.items?.length > 0) {
-          // If there's an initial model ID from URL, use that
-          if (initialModelId) {
-            const initialModel = data.items.find((model: Model) => model.id === initialModelId);
-            if (initialModel) {
-              setCurrentModel(initialModel);
-              return;
+        // Fetch all data in parallel instead of sequentially
+        const [modelsResponse, deploymentsResult, creditsResponse] = await Promise.all([
+          fetch('/api/models?limit=50&sort=popularity'),
+          fetchDeployments().catch((err) => {
+            console.error('Failed to fetch deployments:', err);
+            return null;
+          }),
+          fetch('/api/credits').catch(() => null),
+        ]);
+
+        // Process models
+        if (modelsResponse.ok) {
+          const modelsData = await modelsResponse.json();
+          setModels(modelsData.items || []);
+          
+          if (modelsData.items?.length > 0) {
+            // If there's an initial model ID from URL, use that
+            if (initialModelId) {
+              const initialModel = modelsData.items.find((model: Model) => model.id === initialModelId);
+              if (initialModel) {
+                setCurrentModel(initialModel);
+              } else {
+                // Fallback if URL model not found
+                const llamaModel = modelsData.items.find((model: Model) => 
+                  model.id === 'casperhansen/llama-3.3-70b-instruct-awq' || 
+                  model.name.toLowerCase().includes('llama 3.3 70b instruct (awq)')
+                );
+                setCurrentModel(llamaModel || modelsData.items[0]);
+              }
+            } else {
+              // Otherwise, prefer Llama 3.3 70B Instruct (AWQ) as the default model
+              const llamaModel = modelsData.items.find((model: Model) => 
+                model.id === 'casperhansen/llama-3.3-70b-instruct-awq' || 
+                model.name.toLowerCase().includes('llama 3.3 70b instruct (awq)')
+              );
+              setCurrentModel(llamaModel || modelsData.items[0]);
             }
           }
-          
-          // Otherwise, prefer Llama 3.3 70B Instruct (AWQ) as the default model since it works with tandem backend
-          const llamaModel = data.items.find((model: Model) => 
-            model.id === 'casperhansen/llama-3.3-70b-instruct-awq' || 
-            model.name.toLowerCase().includes('llama 3.3 70b instruct (awq)')
-          );
-          setCurrentModel(llamaModel || data.items[0]);
+        }
+
+        // Process deployments
+        if (deploymentsResult) {
+          const deployedIds = getDeployedModelIds(deploymentsResult);
+          setDeployedModelIds(deployedIds);
+        }
+        setIsRefreshingDeployments(false);
+
+        // Process credits
+        if (creditsResponse && creditsResponse.ok) {
+          const creditsData = await creditsResponse.json();
+          setUserCredits(creditsData.balance || 0);
         }
       } catch (error) {
-        console.error('Failed to fetch models:', error);
+        console.error('Failed to fetch initial data:', error);
+        setIsRefreshingDeployments(false);
       }
     };
-    fetchModels();
-    fetchUserCredits();
+
+    fetchInitialData();
   }, [initialModelId]);
 
   // Fetch user rooms on mount
@@ -630,6 +695,7 @@ function ChatPageContent() {
                       onValueChange={(modelId) => {
                         const selectedModel = models.find(m => m.id === modelId);
                         if (selectedModel) {
+                          // Allow selection even if not deployed - will fallback to OpenRouter
                           setCurrentModel(selectedModel);
                         }
                       }}
@@ -655,29 +721,44 @@ function ChatPageContent() {
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent className="min-w-[320px] max-w-[600px]">
-                        {models.map((model) => (
-                          <SelectItem key={model.id} value={model.id}>
-                            <div className="flex items-center justify-between w-full min-w-0">
-                              <div className="flex items-center space-x-2 min-w-0 flex-1">
-                                <span className="font-medium truncate flex-shrink-0">{model.name}</span>
-                                <div className="flex space-x-1 flex-shrink-0">
-                                  <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                                    In: ${model.promptPrice.toFixed(3)}
-                                  </Badge>
-                                  <Badge variant="outline" className="text-xs whitespace-nowrap">
-                                    Out: ${model.completionPrice.toFixed(3)}
-                                  </Badge>
+                        {models.map((model) => {
+                          const isDeployed = deployedModelIds.has(model.id);
+                          return (
+                            <SelectItem 
+                              key={model.id} 
+                              value={model.id}
+                            >
+                              <div className="flex items-center justify-between w-full min-w-0">
+                                <div className="flex items-center space-x-2 min-w-0 flex-1">
+                                  <span className="font-medium truncate flex-shrink-0">{model.name}</span>
+                                  <div className="flex space-x-1 flex-shrink-0">
+                                    <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                                      In: ${model.promptPrice.toFixed(3)}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-xs whitespace-nowrap">
+                                      Out: ${model.completionPrice.toFixed(3)}
+                                    </Badge>
+                                  </div>
                                 </div>
+                                {currentModel?.id === model.id && (
+                                  <Check className="h-4 w-4 ml-2 flex-shrink-0" />
+                                )}
                               </div>
-                              {currentModel?.id === model.id && (
-                                <Check className="h-4 w-4 ml-2 flex-shrink-0" />
-                              )}
-                            </div>
-                          </SelectItem>
-                        ))}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchDeploymentStatus}
+                    disabled={isRefreshingDeployments}
+                    className="ml-2 flex-shrink-0"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isRefreshingDeployments ? 'animate-spin' : ''}`} />
+                  </Button>
                   {/* Settings button - commented out as requested */}
                   {/* <Button variant="ghost" size="sm">
                     <Settings className="h-4 w-4" />
@@ -724,14 +805,6 @@ function ChatPageContent() {
                                 {hasStreamingRegular}
                                 <span className="animate-pulse">▊</span>
                               </p>
-                              {message.backend && (
-                                <div className="mt-2 flex justify-end">
-                                  <BackendIndicator 
-                                    backend={message.backend as 'tandemn' | 'openrouter' | 'mock'} 
-                                    className="text-xs"
-                                  />
-                                </div>
-                              )}
                             </div>
                           </div>
                         )}
@@ -813,14 +886,6 @@ function ChatPageContent() {
                                 .map(part => part.content)
                                 .join('\n')}
                       </p>
-                      {message.role === 'assistant' && message.backend && (
-                        <div className="mt-2 flex justify-end">
-                          <BackendIndicator 
-                            backend={message.backend as 'tandemn' | 'openrouter' | 'mock'} 
-                            className="text-xs"
-                          />
-                        </div>
-                      )}
                     </div>
                   </div>
                       )}

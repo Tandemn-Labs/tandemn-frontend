@@ -7,6 +7,7 @@ export interface IUserTransaction extends Document {
   type: 'usage_charge' | 'credit_purchase' | 'bonus_credit' | 'refund';
   amount: number; // Positive for credits added, negative for credits used
   description: string;
+  status: 'completed' | 'pending' | 'failed';
   modelId?: string; // For usage transactions
   tokens?: number; // Tokens consumed (for usage)
   metadata?: {
@@ -48,6 +49,12 @@ const UserTransactionSchema = new Schema<IUserTransaction>({
   },
   description: {
     type: String,
+    required: true,
+  },
+  status: {
+    type: String,
+    enum: ['completed', 'pending', 'failed'],
+    default: 'completed',
     required: true,
   },
   modelId: {

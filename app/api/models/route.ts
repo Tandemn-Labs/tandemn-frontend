@@ -5,8 +5,7 @@ import { sleep } from '@/lib/utils';
 
 export async function GET(request: NextRequest) {
   try {
-    // Add artificial latency for realistic feel
-    await sleep(180);
+    // Removed artificial latency for better performance
     
     const { searchParams } = new URL(request.url);
     
@@ -30,10 +29,17 @@ export async function GET(request: NextRequest) {
     // Get filtered models
     const result = db.getModels(validatedParams);
     
-    return NextResponse.json({
-      ...result,
-      page: validatedParams.page || 1,
-    });
+    return NextResponse.json(
+      {
+        ...result,
+        page: validatedParams.page || 1,
+      },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+        },
+      }
+    );
   } catch (error) {
     console.error('Error in /api/models:', error);
     return NextResponse.json(

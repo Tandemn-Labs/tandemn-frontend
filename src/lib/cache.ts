@@ -88,6 +88,9 @@ export const CacheKeys = {
   userApiKeys: (userId: string) => `user:${userId}:apikeys`,
   userMetadata: (userId: string) => `user:${userId}:metadata`,
   userTransactions: (userId: string) => `user:${userId}:transactions`,
+  deploymentStatus: () => `deployments:status`,
+  modelsList: () => `models:list`,
+  userRooms: (userId: string) => `user:${userId}:rooms`,
 };
 
 // Cache TTLs (Time To Live) in milliseconds
@@ -97,4 +100,7 @@ export const CacheTTL = {
   USER_API_KEYS: 5 * 60 * 1000,   // 5 minutes - API keys don't change often
   USER_METADATA: 3 * 60 * 1000,   // 3 minutes - metadata can change
   USER_TRANSACTIONS: 1 * 60 * 1000, // 1 minute - transactions change frequently
+  DEPLOYMENT_STATUS: 30 * 1000,   // 30 seconds - deployment status changes moderately
+  MODELS_LIST: 5 * 60 * 1000,     // 5 minutes - models list is fairly static
+  USER_ROOMS: 1 * 60 * 1000,      // 1 minute - rooms can change
 };

@@ -3,13 +3,6 @@ import { verifyStripeSignature } from '@/lib/stripe';
 import { addCredits, addTransaction } from '@/lib/credits';
 import Stripe from 'stripe';
 
-// Disable body parser for webhook verification
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text();
@@ -64,40 +57,44 @@ export async function POST(request: NextRequest) {
               type: 'credit_purchase',
               amount: credits,
               description: `Stripe purchase: ${packageId}`,
+              status: 'completed',
               metadata: {
-                stripeSessionId: session.id,
-                packageId,
-                stripePaymentIntentId: session.payment_intent as string,
+                sessionId: session.id,
+                stripePaymentId: session.payment_intent as string,
               },
             });
 
             console.log(`✅ Successfully added ${credits} credits to user ${userId}`);
           } else {
             console.error(`❌ Failed to add credits to user ${userId}`);
+            console.error(`⚠️  CRITICAL: Payment received but credits not added. Session: ${session.id}, User: ${userId}`);
             
-            // Log failed transaction
+            // Log failed transaction - still return 200 to prevent webhook retries
+            // This requires manual intervention to credit the user
             await addTransaction(userId, {
               type: 'credit_purchase',
               amount: credits,
               description: `Failed Stripe purchase: ${packageId}`,
+              status: 'failed',
               metadata: {
-                stripeSessionId: session.id,
-                packageId,
+                sessionId: session.id,
                 error: 'Failed to add credits to account',
               },
             });
           }
         } catch (error) {
           console.error('Error processing credit purchase:', error);
+          console.error(`⚠️  CRITICAL: Payment received but error occurred. Session: ${session.id}, User: ${userId}, Error: ${error}`);
           
-          // Log error transaction
+          // Log error transaction - still return 200 to prevent webhook retries
+          // This requires manual intervention to credit the user
           await addTransaction(userId, {
             type: 'credit_purchase',
             amount: credits,
             description: `Error in Stripe purchase: ${packageId}`,
+            status: 'failed',
             metadata: {
-              stripeSessionId: session.id,
-              packageId,
+              sessionId: session.id,
               error: error instanceof Error ? error.message : 'Unknown error',
             },
           });

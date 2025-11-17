@@ -30,6 +30,7 @@ export interface Transaction {
   type: 'usage_charge' | 'credit_purchase' | 'bonus_credit' | 'refund';
   amount: number;
   description: string;
+  status: 'completed' | 'pending' | 'failed';
   modelId?: string;
   tokens?: number;
   metadata?: any;
@@ -63,6 +64,17 @@ export async function getUserAccount(clerkUserId?: string): Promise<IUserAccount
         credits: 20.00, // Default balance
       });
       await account.save();
+      
+      // Record initial credit grant as a transaction
+      const newTransaction = new UserTransaction({
+        userId: account._id.toString(),
+        clerkUserId: userIdToUse,
+        type: 'bonus_credit',
+        amount: 20.00,
+        description: 'Welcome bonus credits',
+        status: 'completed',
+      });
+      await newTransaction.save();
     }
 
     // Cache the result
@@ -187,6 +199,7 @@ export async function getTransactionHistory(userId?: string): Promise<Transactio
       type: tx.type,
       amount: tx.amount,
       description: tx.description,
+      status: tx.status || 'completed', // Default to completed for old transactions
       modelId: tx.modelId,
       tokens: tx.tokens,
       metadata: tx.metadata,
@@ -216,6 +229,7 @@ export async function addTransaction(userId: string, transaction: Omit<Transacti
       type: transaction.type,
       amount: transaction.amount,
       description: transaction.description,
+      status: transaction.status,
       modelId: transaction.modelId,
       tokens: transaction.tokens,
       metadata: transaction.metadata,
@@ -422,6 +436,7 @@ export async function giveWelcomeCredits(userId: string): Promise<void> {
         type: 'bonus_credit',
         amount: welcomeCredits,
         description: 'Welcome bonus credits',
+        status: 'completed',
       });
     }
   } catch (error) {
@@ -450,6 +465,7 @@ export async function chargeForUsage(
         type: 'usage_charge',
         amount: -cost,
         description: `API usage: ${modelId}`,
+        status: 'completed',
         modelId,
         tokens: totalTokens,
         metadata: {
@@ -487,6 +503,7 @@ export async function chargeCredits(
         type: 'usage_charge',
         amount: -amount,
         description,
+        status: 'completed',
         metadata,
       });
     }
@@ -498,23 +515,3 @@ export async function chargeCredits(
   }
 }
 
-// Purchase credits (mock implementation - integrate with Stripe in production)
-export async function purchaseCredits(packageId: string, userId: string): Promise<{ success: boolean; message: string }> {
-  try {
-    // In a real implementation, this would:
-    // 1. Create a Stripe checkout session
-    // 2. Handle webhook to add credits after successful payment
-    // For now, this is a placeholder
-    
-    return {
-      success: false,
-      message: 'Credit purchase is not yet implemented. Please contact support.',
-    };
-  } catch (error) {
-    console.error('Error purchasing credits:', error);
-    return {
-      success: false,
-      message: 'Failed to process credit purchase',
-    };
-  }
-}

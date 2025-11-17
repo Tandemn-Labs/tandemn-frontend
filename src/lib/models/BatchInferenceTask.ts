@@ -100,7 +100,15 @@ export interface IBatchInferenceTask extends Document {
     stackTrace?: string;
   };
   
-  // Cost Tracking (if applicable)
+  // Cost Tracking
+  // Estimated cost calculated upfront based on total_lines
+  estimatedCostInfo?: {
+    estimatedCostUSD: number;
+    creditsCost: number;
+    pricingModel: string;
+  };
+  
+  // Actual cost calculated after completion based on real token usage
   costInfo?: {
     estimatedCostUSD: number;
     creditsCost: number;
@@ -245,6 +253,12 @@ const BatchInferenceTaskSchema = new Schema<IBatchInferenceTask>({
   },
   
   // Cost Tracking
+  estimatedCostInfo: {
+    estimatedCostUSD: Number,
+    creditsCost: Number,
+    pricingModel: String,
+  },
+  
   costInfo: {
     estimatedCostUSD: Number,
     creditsCost: Number,

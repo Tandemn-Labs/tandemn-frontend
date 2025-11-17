@@ -5,7 +5,13 @@ import { Providers } from '@/components/providers';
 import { Topbar } from '@/components/topbar';
 import '@/globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap', // Prevent FOIT (Flash of Invisible Text)
+  preload: true,
+  variable: '--font-inter',
+  adjustFontFallback: true,
+});
 
 export const metadata: Metadata = {
   title: 'Tandemn - Combining Heterogenous GPUs to run AI models',

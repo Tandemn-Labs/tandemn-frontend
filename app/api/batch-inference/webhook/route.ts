@@ -3,7 +3,9 @@ import {
   updateBatchInferenceProgress,
   completeBatchInferenceTask,
   failBatchInferenceTask,
+  getBatchInferenceTask,
 } from '@/lib/services/batch-inference-service';
+import { calculateBatchCost } from '@/config/batch-pricing';
 
 // Optional: Add a secret key for webhook authentication
 const WEBHOOK_SECRET = process.env.BATCH_INFERENCE_WEBHOOK_SECRET;
@@ -92,6 +94,44 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        // Get the task to retrieve model name
+        const task = await getBatchInferenceTask(taskId);
+        if (!task) {
+          return NextResponse.json(
+            { error: 'Task not found' },
+            { status: 404 }
+          );
+        }
+
+        // Calculate actual cost based on token metrics
+        let actualCost = 0;
+        let actualCostInfo = undefined;
+        
+        if (body.token_metrics && body.token_metrics.total_input_tokens && body.token_metrics.total_output_tokens) {
+          actualCost = calculateBatchCost(
+            task.modelName,
+            body.token_metrics.total_input_tokens,
+            body.token_metrics.total_output_tokens
+          );
+          
+          actualCostInfo = {
+            estimatedCostUSD: actualCost,
+            creditsCost: actualCost,
+            pricingModel: 'together-batch-25discount',
+          };
+          
+          console.log(`💰 Calculated actual cost for task ${taskId}: $${actualCost.toFixed(4)}`);
+          console.log(`   Input tokens: ${body.token_metrics.total_input_tokens}, Output tokens: ${body.token_metrics.total_output_tokens}`);
+          
+          // Log comparison with estimated cost if available
+          if (task.estimatedCostInfo) {
+            const estimatedCost = task.estimatedCostInfo.creditsCost;
+            const difference = actualCost - estimatedCost;
+            const percentDiff = ((difference / estimatedCost) * 100).toFixed(1);
+            console.log(`   Estimated cost: $${estimatedCost.toFixed(4)}, Difference: $${difference.toFixed(4)} (${percentDiff}%)`);
+          }
+        }
+
         const completeResult = await completeBatchInferenceTask({
           taskId,
           outputFile: {
@@ -114,11 +154,7 @@ export async function POST(request: NextRequest) {
             peakBufferSize: body.performance_metrics.peak_buffer_size,
             totalBatches: body.performance_metrics.total_batches,
           } : undefined,
-          costInfo: body.cost_info ? {
-            estimatedCostUSD: body.cost_info.estimated_cost_usd,
-            creditsCost: body.cost_info.credits_cost,
-            pricingModel: body.cost_info.pricing_model,
-          } : undefined,
+          costInfo: actualCostInfo, // Use calculated cost instead of backend-provided cost
         });
 
         if (!completeResult.success) {

@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
                 throw error;
               }
             },
-            600000, // 10 minute timeout
+            30000, // 30 second timeout - fail fast and fallback to OpenRouter
             streamController.signal // Pass abort signal to tandem client
           );
           
@@ -270,7 +270,9 @@ export async function POST(request: NextRequest) {
           
           // Fallback to alternative provider when primary backend fails
           try {
+            console.log('🔄 API: Falling back to OpenRouter...');
             const openRouterModel = mapModelToOpenRouter(model.id);
+            console.log(`🔄 API: Using OpenRouter model: ${openRouterModel}`);
             
             const openRouterRequest = {
               model: openRouterModel,
@@ -279,12 +281,14 @@ export async function POST(request: NextRequest) {
               temperature: 0.7,
             };
             
-            const openRouterResponse = await openRouterClient.chatWithTimeout(openRouterRequest, 30000);
+            console.log('📡 API: Sending request to OpenRouter...');
+            const openRouterResponse = await openRouterClient.chatWithTimeout(openRouterRequest, 60000); // Increased to 60s
             
             if (openRouterResponse && openRouterResponse.choices && openRouterResponse.choices[0]) {
               response = openRouterResponse.choices[0].message.content || '';
               outputTokens = openRouterResponse.usage?.completion_tokens || Math.ceil(response.length / 4);
               backendUsed = 'openrouter';
+              console.log('✅ API: OpenRouter fallback successful, response length:', response.length);
               // Fallback successful
               
               // Send the OpenRouter response as streaming chunks (simulated)
@@ -295,6 +299,98 @@ export async function POST(request: NextRequest) {
                 // Check if controller is still open
                 try {
                   if (currentIndex >= words.length) {
+                    // Calculate costs for OpenRouter fallback
+                    const totalTokens = inputTokens + outputTokens;
+                    const inputCost = (inputTokens / 1000000) * (model.promptPrice || 0);
+                    const outputCost = (outputTokens / 1000000) * (model.completionPrice || 0);
+                    const totalCost = inputCost + outputCost;
+                    const endTime = Date.now();
+                    
+                    // Store assistant message in MongoDB with encryption (OpenRouter fallback)
+                    let newMessage: any = null;
+                    if (roomId) {
+                      try {
+                        const assistantMessage = await ConversationService.addMessage(
+                          roomId,
+                          userId,
+                          'assistant',
+                          response,
+                          model.id,
+                          {
+                            inputTokens,
+                            outputTokens,
+                            totalTokens: inputTokens + outputTokens,
+                            cost: totalCost,
+                          },
+                          {
+                            backend: 'openrouter',
+                            processingTime: endTime - startTime,
+                          }
+                        );
+                        newMessage = { id: assistantMessage.id };
+                        console.log('💾 MongoDB: Saved OpenRouter fallback assistant message with encryption');
+                      } catch (error) {
+                        console.error('❌ MongoDB: Failed to save OpenRouter fallback assistant message:', error);
+                        // Continue without failing the request
+                      }
+                    }
+                    
+                    // Save OpenRouter fallback to ChatResponse collection
+                    try {
+                      await ChatResponseService.createChatResponse({
+                        userId: userId,
+                        modelId: model.id,
+                        roomId: roomId || undefined,
+                        messageId: newMessage?.id,
+                        inputText: conversationText,
+                        responseText: response,
+                        backendUsed: 'openrouter',
+                        inputTokens,
+                        outputTokens,
+                        totalTokens,
+                        inputCost,
+                        outputCost,
+                        totalCost,
+                        processingTimeMs: endTime - startTime,
+                        metadata: {
+                          modelVendor: model.vendor,
+                          modelName: model.name,
+                          requestId: newMessage?.id,
+                        },
+                      });
+                      console.log('💾 Database: Saved OpenRouter fallback chat response to MongoDB');
+                    } catch (error) {
+                      console.error('❌ Database: Failed to save OpenRouter chat response:', error);
+                    }
+                    
+                    // Charge credits for OpenRouter fallback
+                    if (userId) {
+                      const trackingUserId = userId === 'demo' ? 'demo-user' : userId;
+                      
+                      // Record usage in database
+                      db.addUsage({
+                        userId: trackingUserId,
+                        modelId: model.id,
+                        roomId: roomId || undefined,
+                        messageId: newMessage?.id,
+                        inputTokens,
+                        outputTokens,
+                        totalTokens,
+                        cost: totalCost,
+                      });
+                      
+                      // Charge credits based on actual token usage and model pricing
+                      const actualCost = calculateCost(model.id, inputTokens, outputTokens);
+                      await chargeCredits(actualCost, `${model.name}: ${inputTokens} input + ${outputTokens} output tokens (OpenRouter fallback)`, userId, { 
+                        modelId: model.id, 
+                        roomId, 
+                        inputTokens, 
+                        outputTokens,
+                        backend: 'openrouter',
+                        cost: actualCost
+                      });
+                    }
+                    
                     // Send final chunk for OpenRouter fallback
                     const finalChunkData = { 
                       done: true,
@@ -344,11 +440,12 @@ export async function POST(request: NextRequest) {
               throw new Error('OpenRouter returned empty response');
             }
           } catch (openRouterError) {
-            console.error('❌ API: Service temporarily unavailable');
+            console.error('❌ API: OpenRouter fallback also failed');
+            console.error('OpenRouter error:', openRouterError);
             
             // Send generic error through the stream
             const errorChunk = `event: chunk\ndata: ${JSON.stringify({ 
-              error: `Service temporarily unavailable. Please try again in a moment.`,
+              error: `Service temporarily unavailable. Both Tandemn and OpenRouter are down. Please try again in a moment.`,
               done: true
             })}\n\n`;
             controller.enqueue(encoder.encode(errorChunk));

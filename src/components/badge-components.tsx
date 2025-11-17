@@ -116,3 +116,40 @@ export function ModelBadge({ series, className }: ModelBadgeProps) {
     </Badge>
   );
 }
+
+interface DeploymentBadgeProps {
+  status: 'deployed' | 'not-deployed' | 'loading' | 'ready';
+  className?: string;
+}
+
+export function DeploymentBadge({ status, className }: DeploymentBadgeProps) {
+  const statusConfig: Record<string, { label: string; color: string }> = {
+    deployed: {
+      label: 'Deployed ✓',
+      color: 'bg-green-50 text-green-700 border-green-200',
+    },
+    ready: {
+      label: 'Deployed ✓',
+      color: 'bg-green-50 text-green-700 border-green-200',
+    },
+    'not-deployed': {
+      label: 'Not Deployed',
+      color: 'bg-gray-50 text-gray-500 border-gray-300',
+    },
+    loading: {
+      label: 'Loading...',
+      color: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    },
+  };
+
+  const config = statusConfig[status] || statusConfig['not-deployed'];
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn('text-xs border', config.color, className)}
+    >
+      {config.label}
+    </Badge>
+  );
+}

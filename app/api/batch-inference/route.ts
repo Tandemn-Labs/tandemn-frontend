@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createBatchInferenceTask } from '@/lib/services/batch-inference-service';
 import { getBatchInferenceUrl } from '@/config/batch-inference-endpoints';
+import { estimateBatchCost } from '@/config/batch-pricing';
+import { getUserCredits } from '@/lib/user-account-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,6 +36,29 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Calculate estimated cost and check user credits
+    const totalLines = body.total_lines || 1000; // Default estimate if not provided
+    const estimatedCost = estimateBatchCost(body.model_name, totalLines);
+    
+    console.log(`💰 Estimated cost for ${totalLines} lines: $${estimatedCost.toFixed(4)}`);
+    
+    // Check user credits
+    const userCredits = await getUserCredits(userId);
+    if (userCredits < estimatedCost) {
+      console.log(`❌ Insufficient credits. Required: $${estimatedCost.toFixed(4)}, Available: $${userCredits.toFixed(4)}`);
+      return NextResponse.json(
+        { 
+          error: `Insufficient credits for batch inference. Required: $${estimatedCost.toFixed(2)}, Available: $${userCredits.toFixed(2)}`,
+          credits_required: estimatedCost,
+          credits_available: userCredits,
+          estimated_lines: totalLines,
+        },
+        { status: 402 } // Payment Required
+      );
+    }
+    
+    console.log(`✅ User has sufficient credits: $${userCredits.toFixed(4)} >= $${estimatedCost.toFixed(4)}`);
     
     console.log('Proxying batch inference request:', {
       model_name: body.model_name,
@@ -115,6 +140,11 @@ export async function POST(request: NextRequest) {
             n: body.n,
             eosTokenId: body.eos_token_id,
             stop: body.stop,
+          },
+          estimatedCostInfo: {
+            estimatedCostUSD: estimatedCost,
+            creditsCost: estimatedCost,
+            pricingModel: 'together-batch-25discount',
           },
           metadata: {
             userAgent: request.headers.get('user-agent') || undefined,
