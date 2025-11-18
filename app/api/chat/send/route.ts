@@ -181,12 +181,16 @@ export async function POST(request: NextRequest) {
 
             // Save to database
             try {
+              // Get the actual user message (last message in the array)
+              const userMessage = messages[messages.length - 1];
+              const actualUserInput = userMessage?.role === 'user' ? userMessage.content : conversationText;
+              
               await ChatResponseService.createChatResponse({
                 userId: userId,
                 modelId: model.id,
                 roomId: roomId || undefined,
                 messageId: newMessage?.id,
-                inputText: conversationText,
+                inputText: actualUserInput, // Store only the actual user message, not full conversation
                 responseText: response,
                 backendUsed: backendUsed as 'tandemn' | 'openrouter' | 'mock',
                 inputTokens,
@@ -337,12 +341,16 @@ export async function POST(request: NextRequest) {
                     
                     // Save OpenRouter fallback to ChatResponse collection
                     try {
+                      // Get the actual user message (last message in the array)
+                      const userMessage = messages[messages.length - 1];
+                      const actualUserInput = userMessage?.role === 'user' ? userMessage.content : conversationText;
+                      
                       await ChatResponseService.createChatResponse({
                         userId: userId,
                         modelId: model.id,
                         roomId: roomId || undefined,
                         messageId: newMessage?.id,
-                        inputText: conversationText,
+                        inputText: actualUserInput, // Store only the actual user message, not full conversation
                         responseText: response,
                         backendUsed: 'openrouter',
                         inputTokens,
