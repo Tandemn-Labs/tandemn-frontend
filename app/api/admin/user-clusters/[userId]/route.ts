@@ -12,7 +12,7 @@ import { getUserClusters } from '@/config/clusters';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const { userId: adminUserId } = await auth();
@@ -25,7 +25,7 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    const { userId } = params;
+    const { userId } = await params;
 
     await dbConnect();
 
