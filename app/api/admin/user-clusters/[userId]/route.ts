@@ -44,7 +44,7 @@ export async function GET(
       clusterDetails: clusterDetails.map(c => ({
         id: c.id,
         name: c.name,
-        description: c.description,
+        // description: c.description,
       })),
     });
 

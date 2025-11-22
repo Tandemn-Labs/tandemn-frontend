@@ -7,9 +7,15 @@ import { createCliSessionToken } from '@/lib/cli-session';
 /**
  * POST /api/cli/select-cluster
  * 
- * Allows CLI users to select a cluster and receive a session token
+ * Allows CLI users to select clusters and receive a session token
  * 
- * Request body:
+ * Request body (new format):
+ * {
+ *   "apiKey": "gk-...",
+ *   "clusters": ["Tandemn", "HAL"]
+ * }
+ * 
+ * Request body (backward compatible):
  * {
  *   "apiKey": "gk-...",
  *   "cluster": "HAL"
@@ -18,15 +24,25 @@ import { createCliSessionToken } from '@/lib/cli-session';
  * Response:
  * {
  *   "success": true,
- *   "sessionToken": "eyJ...",
- *   "cluster": "HAL",
- *   "expiresAt": "2024-12-18T10:30:00.000Z"
+ *   "session_token": "eyJ...",
+ *   "clusters": ["Tandemn", "HAL"],
+ *   "expires_at": "2024-12-18T10:30:00.000Z"
  * }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { apiKey, cluster } = body;
+    const { apiKey, cluster, clusters } = body;
+    
+    // Support both old (cluster) and new (clusters) formats
+    let selectedClusters: string[];
+    if (clusters && Array.isArray(clusters)) {
+      selectedClusters = clusters;
+    } else if (cluster && typeof cluster === 'string') {
+      selectedClusters = [cluster];
+    } else {
+      selectedClusters = [];
+    }
 
     // Validate input
     if (!apiKey || typeof apiKey !== 'string') {
@@ -40,24 +56,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!cluster || typeof cluster !== 'string') {
+    if (selectedClusters.length === 0) {
       return NextResponse.json(
         { 
           success: false,
           error: 'Cluster is required',
-          message: 'Please specify which cluster to connect to'
+          message: 'Please specify at least one cluster to connect to'
         },
         { status: 400 }
       );
     }
 
-    // Validate cluster exists
-    if (!isValidCluster(cluster)) {
+    // Validate all clusters exist
+    const invalidClusters = selectedClusters.filter(c => !isValidCluster(c));
+    if (invalidClusters.length > 0) {
       return NextResponse.json(
         { 
           success: false,
           error: 'Invalid cluster',
-          message: `Cluster '${cluster}' does not exist`
+          message: `The following clusters do not exist: ${invalidClusters.join(', ')}`
         },
         { status: 400 }
       );
@@ -92,14 +109,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has access to the requested cluster
+    // Check if user has access to all requested clusters
     const userClusterIds = userAccount.clusters || ['Tandemn'];
-    if (!userClusterIds.includes(cluster)) {
+    const unauthorizedClusters = selectedClusters.filter(c => !userClusterIds.includes(c));
+    if (unauthorizedClusters.length > 0) {
       return NextResponse.json(
         { 
           success: false,
           error: 'Access denied',
-          message: `You do not have access to the '${cluster}' cluster. Available clusters: ${userClusterIds.join(', ')}`
+          message: `You do not have access to the following clusters: ${unauthorizedClusters.join(', ')}. Available clusters: ${userClusterIds.join(', ')}`
         },
         { status: 403 }
       );
@@ -110,16 +128,16 @@ export async function POST(request: NextRequest) {
       userAccount._id.toString(),
       clerkUserId,
       apiKeyId,
-      cluster
+      selectedClusters
     );
 
-    // Return success response
+    // Return success response with snake_case for Python client compatibility
     return NextResponse.json({
       success: true,
-      sessionToken: token,
-      cluster,
-      expiresAt: expiresAt.toISOString(),
-      message: `Successfully connected to ${cluster} cluster`,
+      session_token: token,
+      clusters: selectedClusters,
+      expires_at: expiresAt.toISOString(),
+      message: `Successfully connected to clusters: ${selectedClusters.join(', ')}`,
     });
 
   } catch (error) {

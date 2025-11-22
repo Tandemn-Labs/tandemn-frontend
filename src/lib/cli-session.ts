@@ -18,7 +18,7 @@ export interface CLISessionPayload {
   userId: string;
   clerkUserId: string;
   apiKeyId: string;
-  cluster: string;
+  clusters: string[];
   iat: number;
   exp: number;
 }
@@ -28,17 +28,24 @@ export interface CLISessionPayload {
  * @param userId - MongoDB UserAccount _id
  * @param clerkUserId - Clerk user ID
  * @param apiKeyId - API key ID
- * @param cluster - Selected cluster
+ * @param clusters - Selected clusters
  * @returns JWT session token
  */
 export async function createCliSessionToken(
   userId: string,
   clerkUserId: string,
   apiKeyId: string,
-  cluster: string
+  clusters: string[]
 ): Promise<{ token: string; expiresAt: Date }> {
-  if (!isValidCluster(cluster)) {
-    throw new Error(`Invalid cluster: ${cluster}`);
+  // Validate all clusters
+  for (const cluster of clusters) {
+    if (!isValidCluster(cluster)) {
+      throw new Error(`Invalid cluster: ${cluster}`);
+    }
+  }
+
+  if (clusters.length === 0) {
+    throw new Error('At least one cluster must be selected');
   }
 
   const now = Math.floor(Date.now() / 1000);
@@ -50,7 +57,7 @@ export async function createCliSessionToken(
     userId,
     clerkUserId,
     apiKeyId,
-    cluster,
+    clusters,
   } as Omit<CLISessionPayload, 'iat' | 'exp'>)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt(now)
@@ -72,7 +79,7 @@ export async function createCliSessionToken(
     apiKeyId,
     userId,
     clerkUserId,
-    selectedCluster: cluster,
+    selectedClusters: clusters,
     expiresAt,
   });
 
@@ -97,7 +104,8 @@ export async function validateCliSession(
       !payload.userId ||
       !payload.clerkUserId ||
       !payload.apiKeyId ||
-      !payload.cluster
+      !payload.clusters ||
+      !Array.isArray(payload.clusters)
     ) {
       return null;
     }
@@ -123,13 +131,36 @@ export async function validateCliSession(
 }
 
 /**
- * Get the selected cluster for a session token
+ * Get the selected clusters for a session token
  * @param token - JWT session token
- * @returns Cluster ID or null if invalid
+ * @returns Array of cluster IDs or null if invalid
  */
-export async function getClusterForSession(token: string): Promise<string | null> {
+export async function getClustersForSession(token: string): Promise<string[] | null> {
   const session = await validateCliSession(token);
-  return session?.cluster || null;
+  return session?.clusters || null;
+}
+
+/**
+ * Get default cluster from a list of clusters
+ * Prioritizes non-Tandemn clusters, falls back to Tandemn if it's the only option
+ * @param clusters - Array of cluster IDs
+ * @returns Default cluster ID
+ */
+export function getDefaultCluster(clusters: string[]): string {
+  if (clusters.length === 0) {
+    return 'Tandemn';
+  }
+  
+  // Filter out Tandemn
+  const nonTandemn = clusters.filter(c => c !== 'Tandemn');
+  
+  // If we have non-Tandemn clusters, use the first one
+  if (nonTandemn.length > 0) {
+    return nonTandemn[0];
+  }
+  
+  // Otherwise, fall back to Tandemn
+  return 'Tandemn';
 }
 
 /**
@@ -190,7 +221,7 @@ export async function cleanupExpiredSessions(): Promise<number> {
  * @returns Array of active sessions
  */
 export async function getUserSessions(userId: string): Promise<Array<{
-  cluster: string;
+  clusters: string[];
   expiresAt: Date;
   createdAt: Date;
 }>> {
@@ -202,7 +233,7 @@ export async function getUserSessions(userId: string): Promise<Array<{
     }).sort({ createdAt: -1 });
 
     return sessions.map(s => ({
-      cluster: s.selectedCluster,
+      clusters: s.selectedClusters,
       expiresAt: s.expiresAt,
       createdAt: s.createdAt,
     }));

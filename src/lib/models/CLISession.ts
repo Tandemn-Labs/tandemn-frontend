@@ -6,7 +6,7 @@ export interface ICLISession extends Document {
   apiKeyId: string; // Reference to UserAPIKey _id
   userId: string; // MongoDB UserAccount _id
   clerkUserId: string; // Clerk user ID for easy reference
-  selectedCluster: string; // Selected cluster (e.g., 'Tandemn', 'HAL', 'DELTA')
+  selectedClusters: string[]; // Selected clusters (e.g., ['Tandemn', 'HAL', 'DELTA'])
   expiresAt: Date; // Session expiration timestamp
   createdAt: Date;
   updatedAt: Date;
@@ -34,8 +34,8 @@ const CLISessionSchema = new Schema<ICLISession>({
     required: true,
     index: true,
   },
-  selectedCluster: {
-    type: String,
+  selectedClusters: {
+    type: [String],
     required: true,
     index: true,
   },

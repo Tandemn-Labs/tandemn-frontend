@@ -5,12 +5,13 @@
  */
 
 import { NextRequest } from 'next/server';
-import { getClusterForSession, routeRequestToCluster } from '@/lib/cli-session';
+import { getClustersForSession, getDefaultCluster, routeRequestToCluster } from '@/lib/cli-session';
 import { DEFAULT_CLUSTER } from '@/config/clusters';
 
 /**
  * Extract cluster information from request
  * Checks for CLI session token in X-Tandemn-Session header
+ * and X-Tandemn-Target-Cluster for explicit cluster selection
  * 
  * @param request - Next.js request object
  * @returns Cluster ID or default cluster
@@ -21,9 +22,25 @@ export async function getRequestCluster(request: NextRequest): Promise<string> {
     const sessionToken = request.headers.get('X-Tandemn-Session');
     
     if (sessionToken) {
-      const cluster = await getClusterForSession(sessionToken);
-      if (cluster) {
-        return cluster;
+      const sessionClusters = await getClustersForSession(sessionToken);
+      
+      if (sessionClusters && sessionClusters.length > 0) {
+        // Check for explicit target cluster header
+        const targetCluster = request.headers.get('X-Tandemn-Target-Cluster');
+        
+        if (targetCluster) {
+          // Validate that the target cluster is in the session's allowed clusters
+          if (sessionClusters.includes(targetCluster)) {
+            return targetCluster;
+          } else {
+            console.warn(`Target cluster '${targetCluster}' not in session clusters: ${sessionClusters.join(', ')}`);
+            // Fall through to default logic
+          }
+        }
+        
+        // No target cluster specified, use default logic
+        // Prefer non-Tandemn clusters, fall back to Tandemn if it's the only option
+        return getDefaultCluster(sessionClusters);
       }
     }
 

@@ -14,7 +14,7 @@ import { validateCliSession } from '@/lib/cli-session';
  *   "success": true,
  *   "session": {
  *     "userId": "clerk_user_id",
- *     "cluster": "HAL",
+ *     "clusters": ["Tandemn", "HAL"],
  *     "expiresAt": "2024-12-18T10:30:00.000Z"
  *   }
  * }
@@ -54,9 +54,8 @@ export async function GET(request: NextRequest) {
       success: true,
       session: {
         userId: session.clerkUserId,
-        cluster: session.cluster,
+        clusters: session.clusters,
         expiresAt: new Date(session.exp * 1000).toISOString(),
-        apiKeyId: session.apiKeyId,
       },
     });
 

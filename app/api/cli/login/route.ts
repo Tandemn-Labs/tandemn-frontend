@@ -90,9 +90,8 @@ export async function POST(request: NextRequest) {
       clusters: availableClusters.map(c => ({
         id: c.id,
         name: c.name,
-        description: c.description,
+        // description: c.description,
       })),
-      apiKeyId: validation.keyId,
     });
 
   } catch (error) {
