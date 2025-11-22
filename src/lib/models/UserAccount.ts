@@ -6,6 +6,7 @@ export interface IUserAccount extends Document {
   email: string;
   credits: number;
   lastCreditUpdate?: Date;
+  clusters: string[]; // Clusters the user has access to (e.g., ['Tandemn', 'HAL'])
   preferences?: {
     theme?: 'light' | 'dark';
     notifications?: boolean;
@@ -34,6 +35,11 @@ const UserAccountSchema = new Schema<IUserAccount>({
   },
   lastCreditUpdate: {
     type: Date,
+  },
+  clusters: {
+    type: [String],
+    required: true,
+    default: ['Tandemn'], // Default cluster for all users
   },
   preferences: {
     theme: {
