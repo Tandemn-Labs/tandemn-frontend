@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateCliSession } from '@/lib/cli-session';
+import { validateCliSession, invalidateCliSession } from '@/lib/cli-session';
 
 /**
  * GET /api/cli/session
@@ -104,7 +104,6 @@ export async function DELETE(request: NextRequest) {
     const sessionToken = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     // Invalidate the session
-    const { invalidateCliSession } = await import('@/lib/cli-session');
     const invalidated = await invalidateCliSession(sessionToken);
 
     if (!invalidated) {

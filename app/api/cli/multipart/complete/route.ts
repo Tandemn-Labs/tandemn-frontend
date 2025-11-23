@@ -176,8 +176,7 @@ export async function POST(request: NextRequest) {
       { 
         success: false,
         error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'An unexpected error occurred',
-        details: error instanceof Error ? error.stack : String(error)
+        message: 'An unexpected error occurred while completing the multipart upload.'
       },
       { status: 500 }
     );

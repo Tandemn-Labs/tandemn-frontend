@@ -4,10 +4,37 @@ import dbConnect from '@/lib/database';
 import CLISession from '@/lib/models/CLISession';
 import { getClusterUrl, isValidCluster } from '@/config/clusters';
 
-// JWT secret for CLI sessions
-const CLI_SESSION_SECRET = new TextEncoder().encode(
-  process.env.CLI_SESSION_SECRET || process.env.BETTER_AUTH_SECRET || 'tandemn-cli-secret-key'
-);
+// JWT secret for CLI sessions - lazy initialization
+let CLI_SESSION_SECRET: Uint8Array | null = null;
+let secretWarningShown = false;
+
+/**
+ * Get and validate the CLI session secret
+ * Lazy initialization to avoid errors during build time
+ */
+function getCliSessionSecret(): Uint8Array {
+  if (CLI_SESSION_SECRET) {
+    return CLI_SESSION_SECRET;
+  }
+
+  const secret = process.env.CLI_SESSION_SECRET || process.env.BETTER_AUTH_SECRET;
+
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('CLI_SESSION_SECRET environment variable is not set. This is required for production.');
+    } else {
+      if (!secretWarningShown) {
+        console.warn('WARNING: CLI_SESSION_SECRET is not set. Using a default, insecure secret for development only.');
+        secretWarningShown = true;
+      }
+      CLI_SESSION_SECRET = new TextEncoder().encode('tandemn-cli-secret-key-for-dev-only');
+    }
+  } else {
+    CLI_SESSION_SECRET = new TextEncoder().encode(secret);
+  }
+
+  return CLI_SESSION_SECRET;
+}
 
 // Session expiration time (30 days in seconds)
 const SESSION_EXPIRATION_DAYS = 30;
@@ -62,7 +89,7 @@ export async function createCliSessionToken(
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt(now)
     .setExpirationTime(now + SESSION_EXPIRATION_SECONDS)
-    .sign(CLI_SESSION_SECRET);
+    .sign(getCliSessionSecret());
 
   // Store session in database
   await dbConnect();
@@ -96,7 +123,7 @@ export async function validateCliSession(
 ): Promise<CLISessionPayload | null> {
   try {
     // Verify JWT signature and expiration
-    const { payload } = await jwtVerify(token, CLI_SESSION_SECRET);
+    const { payload } = await jwtVerify(token, getCliSessionSecret());
 
     // Check payload structure
     if (

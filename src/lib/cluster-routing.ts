@@ -135,7 +135,7 @@ export async function proxyToCluster(
     const proxyResponse = await fetch(targetUrl, {
       method: request.method,
       headers,
-      body: request.body ? await request.text() : undefined,
+      body: request.body,
     });
     
     return proxyResponse;

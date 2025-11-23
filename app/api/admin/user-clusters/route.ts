@@ -70,11 +70,11 @@ export async function POST(request: NextRequest) {
         { $addToSet: { clusters: cluster } }
       );
 
-      const updatedUser = await UserAccount.findOne({ clerkUserId: userId });
+      const updatedClusters = [...currentClusters, cluster];
 
       return NextResponse.json({
         message: `Added ${cluster} access to user`,
-        clusters: updatedUser?.clusters || [],
+        clusters: updatedClusters,
       });
 
     } else if (action === 'set') {
@@ -178,11 +178,11 @@ export async function DELETE(request: NextRequest) {
       { $pull: { clusters: cluster } }
     );
 
-    const updatedUser = await UserAccount.findOne({ clerkUserId: userId });
+    const updatedClusters = currentClusters.filter((c: string) => c !== cluster);
 
     return NextResponse.json({
       message: `Removed ${cluster} access from user`,
-      clusters: updatedUser?.clusters || [],
+      clusters: updatedClusters,
     });
 
   } catch (error) {

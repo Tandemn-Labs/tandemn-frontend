@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
       { 
         success: false,
         error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'An unexpected error occurred'
+        message: 'An unexpected error occurred while selecting the cluster.'
       },
       { status: 500 }
     );
