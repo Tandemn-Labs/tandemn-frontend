@@ -172,6 +172,9 @@ CLERK_SECRET_KEY=sk_test_your-secret-key-here
 # Clerk Webhook (Optional - for automatic welcome credits)
 CLERK_WEBHOOK_SECRET=whsec_your-clerk-webhook-secret
 
+# Storage Server (Required for CLI uploads)
+STORAGE_SERVER_URL=http://your-storage-server-url:port
+
 # App Configuration
 NODE_ENV=development
 ```
