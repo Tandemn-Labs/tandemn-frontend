@@ -7,8 +7,8 @@ import { z } from 'zod';
 // for NLP-based job config extraction
 
 export const MetaConfigSchema = z.object({
-  // A short description (about 20 characters) of the job
-  description: z.string(),
+  // A short description (max 100 characters) of the job
+  description: z.string().max(100),
 });
 
 export const TaskConfigSchema = z.object({
@@ -19,44 +19,43 @@ export const TaskConfigSchema = z.object({
 });
 
 export const QuantizationConfigSchema = z.object({
-  // method: none | int8 | gptq | awq | gguf | a8w8 | w4a8 | not_specified
-  method: z.enum(['none', 'int8', 'gptq', 'awq', 'gguf', 'a8w8', 'w4a8', 'not_specified']),
-  // bits: string so we can also support "not_specified"
-  bits: z.string(), // e.g. "8", "4", "not_specified"
+  // bits: "4" | "8" | "16" | null
+  bits: z.enum(['4', '8', '16']).nullable(),
 });
 
 export const FeatureConfigSchema = z.object({
-  // true | false | not_specified
-  speculative_decode: z.enum(['true', 'false', 'not_specified']),
-  continuous_batching: z.enum(['true', 'false', 'not_specified']),
-  PD_disaggregation: z.enum(['true', 'false', 'not_specified']),
+  // true | false | null
+  speculative_decode: z.boolean().nullable(),
+  PD_disaggregation: z.boolean().nullable(),
+});
+
+export const VLLMConfigSchema = z.object({
+  max_model_len: z.number().int().nullable(),
+  trust_remote_code: z.boolean().nullable(),
+  max_num_seqs: z.number().int().nullable(),
+  max_num_batched_tokens: z.number().int().nullable(),
+  config_format: z.enum(['auto', 'mistral']).nullable(),
+  limit_mm_per_prompt: z.number().int().nullable(),
 });
 
 export const ModelConfigSchema = z.object({
-  model_name: z.string().nullable().optional(),
+  model_name: z.string().nullable(),
   // engine: vllm | sglang | diffusers | xDIT | not_specified
   engine: z.enum(['vllm', 'sglang', 'diffusers', 'xDIT', 'not_specified']),
-  // tokenizer: huggingface | mistral | not_specified
-  tokenizer: z.enum(['huggingface', 'mistral', 'not_specified']),
-  // string: either a number as string or "not_specified"
-  max_context: z.string(),
-  max_model_len: z.string(),
-  // dtype: fp32 | bf16 | fp16 | fp8 | fp4 | int8 | int4 | not_specified
-  dtype: z.enum(['fp32', 'bf16', 'fp16', 'fp8', 'fp4', 'int8', 'int4', 'not_specified']),
   quantization: QuantizationConfigSchema,
   features: FeatureConfigSchema,
+  vllm_config: VLLMConfigSchema,
 });
 
 export const OfflineSLOSchema = z.object({
-  // deadline_hours: required for batched_inference
-  // Use "not_specified" if not told. String: either a number as string or "not_specified"
-  deadline_hours: z.string(),
+  // deadline_hours: integer or null
+  deadline_hours: z.number().int().nullable(),
 });
 
 export const SLOConfigSchema = z.object({
   // mode: offline | online (ALWAYS online for image_generation)
   mode: z.enum(['offline', 'online']),
-  offline: OfflineSLOSchema.nullable().optional(),
+  offline: OfflineSLOSchema.nullable(),
 });
 
 export const PlacementConfigSchema = z.object({
@@ -98,7 +97,7 @@ export const JOB_CONFIG_JSON_SCHEMA = {
       meta: {
         type: 'object',
         properties: {
-          description: { type: 'string', description: 'A short description (about 20 characters) of the job' },
+          description: { type: 'string', description: 'A short description (max 100 characters) of the job', maxLength: 100 },
         },
         required: ['description'],
         additionalProperties: false,
@@ -115,34 +114,47 @@ export const JOB_CONFIG_JSON_SCHEMA = {
       model: {
         type: 'object',
         properties: {
-          model_name: { type: ['string', 'null'], description: 'Model name, or null for batched_inference' },
+          model_name: { type: ['string', 'null'], description: 'Model name, or null if not specified' },
           engine: { type: 'string', enum: ['vllm', 'sglang', 'diffusers', 'xDIT', 'not_specified'] },
-          tokenizer: { type: 'string', enum: ['huggingface', 'mistral', 'not_specified'] },
-          // Use string for max_context - can be a number as string or "not_specified"
-          max_context: { type: 'string', description: 'Integer as string (e.g. "8192") or "not_specified"' },
-          max_model_len: { type: 'string', description: 'Integer as string (e.g. "4096") or "not_specified"' },
-          dtype: { type: 'string', enum: ['fp32', 'bf16', 'fp16', 'fp8', 'fp4', 'int8', 'int4', 'not_specified'] },
           quantization: {
             type: 'object',
             properties: {
-              method: { type: 'string', enum: ['none', 'int8', 'gptq', 'awq', 'gguf', 'a8w8', 'w4a8', 'not_specified'] },
-              bits: { type: 'string', description: 'e.g. "8", "4", or "not_specified"' },
+              bits: { type: ['string', 'null'], enum: ['4', '8', '16', null], description: 'Quantization bits as string or null' },
             },
-            required: ['method', 'bits'],
+            required: ['bits'],
             additionalProperties: false,
           },
           features: {
             type: 'object',
             properties: {
-              speculative_decode: { type: 'string', enum: ['true', 'false', 'not_specified'] },
-              continuous_batching: { type: 'string', enum: ['true', 'false', 'not_specified'] },
-              PD_disaggregation: { type: 'string', enum: ['true', 'false', 'not_specified'] },
+              speculative_decode: { type: ['boolean', 'null'] },
+              PD_disaggregation: { type: ['boolean', 'null'] },
             },
-            required: ['speculative_decode', 'continuous_batching', 'PD_disaggregation'],
+            required: ['speculative_decode', 'PD_disaggregation'],
+            additionalProperties: false,
+          },
+          vllm_config: {
+            type: 'object',
+            properties: {
+              max_model_len: { type: ['integer', 'null'] },
+              trust_remote_code: { type: ['boolean', 'null'] },
+              max_num_seqs: { type: ['integer', 'null'] },
+              max_num_batched_tokens: { type: ['integer', 'null'] },
+              config_format: { type: ['string', 'null'], enum: ['auto', 'mistral', null] },
+              limit_mm_per_prompt: { type: ['integer', 'null'] },
+            },
+            required: [
+              'max_model_len',
+              'trust_remote_code',
+              'max_num_seqs',
+              'max_num_batched_tokens',
+              'config_format',
+              'limit_mm_per_prompt',
+            ],
             additionalProperties: false,
           },
         },
-        required: ['model_name', 'engine', 'tokenizer', 'max_context', 'max_model_len', 'dtype', 'quantization', 'features'],
+        required: ['model_name', 'engine', 'quantization', 'features', 'vllm_config'],
         additionalProperties: false,
       },
       slo: {
@@ -152,8 +164,7 @@ export const JOB_CONFIG_JSON_SCHEMA = {
           offline: {
             type: ['object', 'null'],
             properties: {
-              // Use string for deadline_hours - can be a number as string or "not_specified"
-              deadline_hours: { type: 'string', description: 'Integer as string (e.g. "24") or "not_specified"' },
+              deadline_hours: { type: ['integer', 'null'], description: 'Deadline in hours or null' },
             },
             required: ['deadline_hours'],
             additionalProperties: false,

@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateCliSession } from '@/lib/cli-session';
 
 /**
- * GET /api/cli/download
+ * DELETE /api/cli/delete
  * 
- * CLI file download endpoint - validates session and streams file from storage server
+ * CLI file delete endpoint - validates session and deletes file from storage server
  * 
  * Request headers:
  * Authorization: Bearer <sessionToken>
@@ -14,9 +14,12 @@ import { validateCliSession } from '@/lib/cli-session';
  * file_path: Backward-compatible alias for remote_path
  * 
  * Response:
- * Streams the file content with appropriate headers for download
+ * {
+ *   "success": true,
+ *   ...additionalFields
+ * }
  */
-export async function GET(request: NextRequest) {
+export async function DELETE(request: NextRequest) {
   try {
     // Extract session token from Authorization header
     const authHeader = request.headers.get('Authorization');
@@ -61,6 +64,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Normalize remote path to a relative path the storage server expects
+    const normalizedRemotePath = remotePath.startsWith('s3://')
+      ? remotePath.split('/').pop() || ''
+      : remotePath;
+
     // Check for storage server URL
     const storageServerUrl = process.env.STORAGE_SERVER_URL;
     if (!storageServerUrl) {
@@ -75,26 +83,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Normalize remote path to a relative path the storage server expects
-    const normalizedRemotePath = remotePath.startsWith('s3://')
-      ? remotePath.split('/').pop() || ''
-      : remotePath;
-
     // Build the storage server URL with user and file path
     const userId = session.clerkUserId;
-    // Remove leading slash from file path if present to avoid double slashes
     const normalizedFilePath = normalizedRemotePath.startsWith('/')
       ? normalizedRemotePath.substring(1)
       : normalizedRemotePath;
-    const storageDownloadUrl = `${storageServerUrl}/storage/download/${userId}/${normalizedFilePath}`;
+    const storageDeleteUrl = `${storageServerUrl}/storage/delete/${userId}/${normalizedFilePath}`;
 
     // Make request to storage server
-    console.log(`Downloading file from storage server at: ${storageDownloadUrl}`);
+    console.log(`Deleting file from storage server at: ${storageDeleteUrl}`);
     
     let storageResponse;
     try {
-      storageResponse = await fetch(storageDownloadUrl, {
-        method: 'GET',
+      storageResponse = await fetch(storageDeleteUrl, {
+        method: 'DELETE',
       });
     } catch (fetchError) {
       console.error('Failed to connect to storage server:', fetchError);
@@ -109,14 +111,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Handle non-OK responses from storage server
     if (!storageResponse.ok) {
       if (storageResponse.status === 404) {
         return NextResponse.json(
           { 
             success: false,
             error: 'File not found',
-            message: `The file "${normalizedFilePath}" was not found in storage`
+            message: `The file "${remotePath}" was not found in storage`
           },
           { status: 404 }
         );
@@ -135,33 +136,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Extract filename from the file path for Content-Disposition header
-    const filename = normalizedFilePath.split('/').pop() || 'download';
-
-    // Create response headers
-    const headers = new Headers();
-    
-    // Copy Content-Type from storage response or use default
-    const contentType = storageResponse.headers.get('Content-Type') || 'application/octet-stream';
-    headers.set('Content-Type', contentType);
-    
-    // Set Content-Disposition for download
-    headers.set('Content-Disposition', `attachment; filename="${filename}"`);
-    
-    // Copy Content-Length if available
-    const contentLength = storageResponse.headers.get('Content-Length');
-    if (contentLength) {
-      headers.set('Content-Length', contentLength);
-    }
-
-    // Stream the response body directly to the client
-    return new Response(storageResponse.body, {
-      status: 200,
-      headers,
-    });
+    const data = await storageResponse.json();
+    return NextResponse.json(data, { status: 200 });
 
   } catch (error) {
-    console.error('Error downloading file:', error);
+    console.error('Error deleting file:', error);
     return NextResponse.json(
       { 
         success: false,

@@ -9,16 +9,22 @@ import { validateCliSession } from '@/lib/cli-session';
  * Request headers:
  * Authorization: Bearer <sessionToken>
  * 
- * Request body:
+ * Request body (BatchedRequest):
  * {
- *   "task_mode": "batched_inference",
- *   "model_name": "llama-70b-hf",
- *   "backend": "vllm",
- *   "quantization": "awq",
- *   "dataset_path": "s3://...",
- *   "column_names": ["prompt", "response"],
- *   "slo": "2h",
- *   "generation_kwargs": {...}
+ *   "user_id": "clerk_user_id",
+ *   "selected_file": "s3://bucket/path/file.jsonl",
+ *   "description": "Llama 70B batched inference",
+ *   "task_type": "batched_inference",
+ *   "task_priority": "normal",
+ *   "model_name": "meta-llama/Llama-2-70b-hf",
+ *   "engine": "vllm",
+ *   "quantization_bits": "4",
+ *   "is_speculative_decode": true,
+ *   "is_PD_disaggregation": null,
+ *   "slo_mode": "offline",
+ *   "slo_deadline_hours": 24,
+ *   "placement": "H100",
+ *   "vllm_specific_config": {...}
  * }
  * 
  * Response:
@@ -61,22 +67,44 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Invalid request',
+          message: 'Request body must be a JSON object'
+        },
+        { status: 400 }
+      );
+    }
 
-    // Generate unique job_id
-    const jobId = crypto.randomUUID();
+    // Validate required fields for BatchedRequest payload
+    const requiredStringFields = [
+      'description',
+      'task_type',
+      'task_priority',
+      'engine',
+      'slo_mode',
+      'placement',
+    ];
+    const missingFields = requiredStringFields.filter(
+      (field) => typeof body[field] !== 'string' || body[field].trim().length === 0
+    );
+    if (missingFields.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Invalid request',
+          message: `Missing or invalid required fields: ${missingFields.join(', ')}`,
+        },
+        { status: 400 }
+      );
+    }
 
-    // Add user from session
-    const user = session.clerkUserId;
-
-    // Add submit_time
-    const submitTime = new Date().toISOString();
-
-    // Merge all job data
+    // Force user_id to match session user
     const jobData = {
-      job_id: jobId,
-      user: user,
-      submit_time: submitTime,
-      ...body, // Include all parameters from the request body
+      ...body,
+      user_id: session.clerkUserId,
     };
 
     // Check for central server URL
