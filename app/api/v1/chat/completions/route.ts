@@ -4,8 +4,9 @@ import { getModelById, calculateCost } from '@/config/models';
 import { getModelEndpoint } from '@/config/model-endpoints';
 import { tandemnClient, mapModelToOpenRouter } from '@/lib/tandemn-client';
 import { openRouterClient } from '@/lib/openrouter-client';
+import { handleClusterRouting, getClusterInfo } from '@/lib/cluster-routing';
 
-3// CORS headers
+// CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -22,6 +23,18 @@ export async function OPTIONS() {
 
 export async function POST(request: NextRequest) {
   try {
+    // CLUSTER ROUTING - Check if request should be routed to another cluster
+    const routedResponse = await handleClusterRouting(request);
+    if (routedResponse) {
+      return routedResponse;
+    }
+
+    // Log cluster info for monitoring
+    const clusterInfo = await getClusterInfo(request);
+    if (clusterInfo.isCliSession) {
+      console.log(`Processing CLI request on ${clusterInfo.cluster} cluster`);
+    }
+
     // Extract API key from Authorization header
     const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
